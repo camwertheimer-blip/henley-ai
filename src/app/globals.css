@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #0a0f1e;
+  --accent: #63b4ff;
+  --accent-amber: #f0a050;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-hover: rgba(255, 255, 255, 0.12);
+  --focus-border: rgba(99, 180, 255, 0.4);
+  --focus-glow: rgba(99, 180, 255, 0.15);
+  --input-placeholder: rgba(148, 163, 184, 0.5);
+}
+
+body {
+  background: var(--bg);
+  min-height: 100vh;
+  font-family: "DM Sans", ui-sans-serif, sans-serif;
+}
+
+.font-display {
+  font-family: "DM Serif Display", Georgia, serif;
+}
+
+.font-body {
+  font-family: "DM Sans", ui-sans-serif, sans-serif;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Input/textarea focus: border + glow, 300ms */
+.henley-input:focus {
+  outline: none;
+  border-color: var(--focus-border);
+  box-shadow: 0 0 20px var(--focus-glow);
+  transition: border-color 300ms ease, box-shadow 300ms ease;
+}
+
+.henley-input {
+  transition: border-color 300ms ease, box-shadow 300ms ease;
+}
