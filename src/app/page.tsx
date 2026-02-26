@@ -8,6 +8,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 
 interface FormData {
   caseNarrative: string;
+  jurisdiction: string;
   keyDocuments: string;
   defendantProfile: string;
   damagesEstimate: string;
@@ -18,6 +19,12 @@ interface FormData {
   feeStructure: string;
 }
 
+interface FileAttachment {
+  name: string;
+  type: string;
+  content: string;
+}
+
 interface AnalysisSection {
   title: string;
   content: string;
@@ -26,6 +33,7 @@ interface AnalysisSection {
 
 const EMPTY_FORM: FormData = {
   caseNarrative: "",
+  jurisdiction: "",
   keyDocuments: "",
   defendantProfile: "",
   damagesEstimate: "",
@@ -51,23 +59,30 @@ const FIELDS: {
     rows: 5,
   },
   {
+    key: "jurisdiction",
+    label: "Jurisdiction",
+    num: "02",
+    hint: "Identify the court or jurisdiction where the case has been or would be filed — e.g., Southern District of New York, Miami-Dade County Circuit Court.",
+    rows: 1,
+  },
+  {
     key: "keyDocuments",
     label: "Key Documents & Legal Basis",
-    num: "02",
+    num: "03",
     hint: "Identify the primary legal basis and key supporting documents — contracts, statutes, filings, or precedent.",
     rows: 4,
   },
   {
     key: "defendantProfile",
     label: "Defendant & Asset Profile",
-    num: "03",
+    num: "04",
     hint: "Identify the defendant, their entity type, known assets, insurance coverage, and financial condition.",
     rows: 4,
   },
   {
     key: "damagesEstimate",
     label: "Damages Estimate",
-    num: "04",
+    num: "05",
     hint: "Estimated total damages with methodology — lost profits, out-of-pocket, statutory, punitive multipliers.",
     rows: 3,
   },
@@ -183,14 +198,17 @@ function ResultCard({ section, index }: { section: AnalysisSection; index: numbe
 
 export default function Home() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
+  const [files, setFiles] = useState<FileAttachment[]>([]);
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
   const [rawText, setRawText] = useState("");
   const [error, setError] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
@@ -207,41 +225,118 @@ export default function Home() {
 
   const scrollToForm = () => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  /* ── File handling ── */
+  const processFiles = async (fileList: FileList) => {
+    const newFiles: FileAttachment[] = [];
+    for (const file of Array.from(fileList)) {
+      if (file.size > 10 * 1024 * 1024) {
+        setError(`File "${file.name}" exceeds 10MB limit.`);
+        continue;
+      }
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1] || result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      newFiles.push({ name: file.name, type: file.type, content: base64 });
+    }
+    setFiles((prev) => [...prev, ...newFiles]);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
+  };
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  /* ── Parse response — flexible ── */
   const parseResponse = (text: string): AnalysisSection[] => {
-    const defs = [
-      { re: /#{1,3}\s*(?:Section\s*0|§\s*0|Completeness|Intake)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§0 — Completeness Check" },
-      { re: /#{1,3}\s*(?:Section\s*1|§\s*1|Legal\s*Theor)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§1 — Legal Theory Assessment" },
-      { re: /#{1,3}\s*(?:Section\s*2|§\s*2|Collectib)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§2 — Collectibility Analysis" },
-      { re: /#{1,3}\s*(?:Section\s*3|§\s*3|Evidence)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§3 — Evidence Gap Analysis" },
-      { re: /#{1,3}\s*(?:Section\s*4|§\s*4|Expected\s*Value|EV)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§4 — Expected Value Model" },
-      { re: /#{1,3}\s*(?:Section\s*5|§\s*5|Fund(?:ing)?\s*Rec)[\s:—\-]*([\s\S]*?)(?=#{1,3}\s|$)/i, t: "§5 — Funding Recommendation" },
-    ];
-    const out: AnalysisSection[] = [];
-    for (const { re, t } of defs) {
-      const m = text.match(re);
-      if (m) {
-        const c = (m[1] || m[0]).trim();
-        const lc = c.toLowerCase();
+    if (!text || text.trim().length === 0) {
+      return [{ title: "Error", content: "No response received from the analysis engine.", verdict: "fail" }];
+    }
+
+    const sections: AnalysisSection[] = [];
+
+    // Try splitting by markdown headers (##, ###, #)
+    const blocks = text.split(/(?=^#{1,3}\s+)/m).filter((s) => s.trim());
+
+    if (blocks.length > 1) {
+      for (const block of blocks) {
+        const lines = block.trim().split("\n");
+        const titleLine = lines[0].replace(/^#{1,3}\s*/, "").replace(/\*+/g, "").trim();
+        const content = lines.slice(1).join("\n").trim();
+        if (!titleLine) continue;
+
+        const lc = (titleLine + " " + content).toLowerCase();
         let verdict: AnalysisSection["verdict"];
-        if (/✅|pass|recommend fund|strong case/.test(lc)) verdict = "pass";
-        else if (/❌|fail|decline|do not fund/.test(lc)) verdict = "fail";
-        else if (/⚠|caution|conditional|insufficient/.test(lc)) verdict = "caution";
-        out.push({ title: t, content: c, verdict });
+        if (/✅|verdict:\s*pass|\bpass\b.*complet|recommend.*fund|strong case|sufficient/.test(lc)) verdict = "pass";
+        else if (/❌|verdict:\s*fail|decline|do not fund|reject|not recommended/.test(lc)) verdict = "fail";
+        else if (/⚠|verdict:\s*caution|conditional|insufficient|additional.*needed|gaps?\s*identif/.test(lc)) verdict = "caution";
+
+        sections.push({ title: titleLine, content: content || "(No additional detail)", verdict });
       }
     }
-    return out.length ? out : [{ title: "Underwriting Analysis", content: text }];
+
+    // Try splitting by bold headers (**Section:**) or numbered patterns
+    if (sections.length === 0) {
+      const boldSplit = text.split(/(?=\*\*[^*]+\*\*)/m).filter((s) => s.trim());
+      if (boldSplit.length > 1) {
+        for (const block of boldSplit) {
+          const match = block.match(/^\*\*([^*]+)\*\*/);
+          if (match) {
+            const title = match[1].trim();
+            const content = block.replace(/^\*\*[^*]+\*\*:?\s*/, "").trim();
+            const lc = (title + " " + content).toLowerCase();
+            let verdict: AnalysisSection["verdict"];
+            if (/pass|sufficient|strong|recommend.*fund|✅/.test(lc)) verdict = "pass";
+            else if (/fail|decline|reject|not recommended|❌/.test(lc)) verdict = "fail";
+            else if (/caution|conditional|insufficient|gaps|⚠/.test(lc)) verdict = "caution";
+            sections.push({ title, content, verdict });
+          }
+        }
+      }
+    }
+
+    // Fallback: show full response as one block
+    if (sections.length === 0) {
+      sections.push({ title: "Underwriting Analysis", content: text });
+    }
+
+    return sections;
   };
 
   const submit = async () => {
     setError(""); setAnalysis(null); setRawText(""); setLoading(true);
     try {
+      const payload = {
+        ...form,
+        attachments: files.length > 0 ? files : undefined,
+      };
       const res = await fetch("/api/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `Error ${res.status}`);
+      }
       const data = await res.json();
-      const t = data.analysis || data.content || data.message || "";
-      setRawText(t); setAnalysis(parseResponse(t));
+      // Backend returns { response: text }
+      const t = data.response || data.analysis || data.content || data.message || data.text || "";
+      if (!t) {
+        throw new Error("Empty response from analysis engine. Please try again.");
+      }
+      setRawText(t);
+      setAnalysis(parseResponse(t));
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
     finally { setLoading(false); }
@@ -391,19 +486,41 @@ export default function Home() {
 
             <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-5">
 
-              {/* Fields 1-4 */}
+              {/* Fields 1-5 */}
               {FIELDS.map((f) => (
                 <div key={f.key} className={cardCls(f.key)}>
                   <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>{f.num}</span>
                   <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">{f.label}</label>
                   <p className="text-[15px] text-slate-400 mb-3 leading-relaxed">{f.hint}</p>
-                  <textarea rows={f.rows} value={form[f.key]} disabled={loading} onChange={(e) => set(f.key, e.target.value)} onFocus={() => setFocus(f.key)} onBlur={() => setFocus(null)} placeholder="Begin typing..." className="w-full bg-transparent resize-y text-base leading-relaxed text-slate-200 placeholder:text-slate-500/50 outline-none disabled:opacity-30" />
+                  {f.rows === 1 ? (
+                    <input
+                      type="text"
+                      value={form[f.key]}
+                      disabled={loading}
+                      onChange={(e) => set(f.key, e.target.value)}
+                      onFocus={() => setFocus(f.key)}
+                      onBlur={() => setFocus(null)}
+                      placeholder="Begin typing..."
+                      className="w-full bg-transparent text-base text-slate-200 placeholder:text-slate-500/50 outline-none disabled:opacity-30"
+                    />
+                  ) : (
+                    <textarea
+                      rows={f.rows}
+                      value={form[f.key]}
+                      disabled={loading}
+                      onChange={(e) => set(f.key, e.target.value)}
+                      onFocus={() => setFocus(f.key)}
+                      onBlur={() => setFocus(null)}
+                      placeholder="Begin typing..."
+                      className="w-full bg-transparent resize-y text-base leading-relaxed text-slate-200 placeholder:text-slate-500/50 outline-none disabled:opacity-30"
+                    />
+                  )}
                 </div>
               ))}
 
-              {/* Field 5 — Funding Request */}
+              {/* Field 6 — Funding Request */}
               <div className={cardCls("fundingRequest")}>
-                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>05</span>
+                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>06</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Funding Request</label>
                 <p className="text-[15px] text-slate-400 mb-4">Total litigation funding amount requested in US dollars.</p>
                 <div className="flex items-center gap-2">
@@ -412,9 +529,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Field 6 — Legal Representation */}
+              {/* Field 7 — Legal Representation */}
               <div className={cardCls("rep")}>
-                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>06</span>
+                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>07</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Legal Representation</label>
                 <p className="text-[15px] text-slate-400 mb-4">Current status of legal counsel for this matter.</p>
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -451,8 +568,68 @@ export default function Home() {
                 </div>
               </div>
 
+              {/* ═══════ FILE ATTACHMENTS ═══════ */}
+              <div className={cardCls("files")}>
+                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>08</span>
+                <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Attachments</label>
+                <p className="text-[15px] text-slate-400 mb-4">Upload contracts, complaints, evidence, or other supporting documents. Max 10MB per file.</p>
+
+                {/* Drop zone */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                  onDragLeave={() => setDragActive(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all duration-200 ${dragActive ? "border-sky-400/50 bg-sky-500/[0.06]" : "border-white/[0.1] bg-white/[0.015] hover:border-white/[0.18] hover:bg-white/[0.03]"}`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.csv,.xls,.xlsx"
+                    onChange={(e) => { if (e.target.files?.length) processFiles(e.target.files); e.target.value = ""; }}
+                    disabled={loading}
+                  />
+                  <svg className="w-8 h-8 mx-auto mb-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+                  </svg>
+                  <p className="text-sm text-slate-400">
+                    <span className="text-sky-400 font-medium">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-slate-500 mt-1">PDF, DOC, TXT, images, spreadsheets</p>
+                </div>
+
+                {/* File list */}
+                {files.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {files.map((f, i) => (
+                      <div key={i} className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.02] px-4 py-2.5">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <svg className="w-4 h-4 shrink-0 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                          </svg>
+                          <span className="text-sm text-slate-300 truncate">{f.name}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(i)}
+                          className="shrink-0 text-slate-500 hover:text-red-400 transition-colors ml-3"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Error */}
               {error && <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{error}</div>}
 
+              {/* Submit */}
               <button type="submit" disabled={!canSubmit} className="w-full h-14 rounded-xl text-white font-semibold text-base tracking-wide transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.2)]" style={{ background: canSubmit ? "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" : "rgba(74,158,255,0.2)" }}>
                 {loading ? (
                   <span className="inline-flex items-center gap-2.5">
@@ -463,7 +640,7 @@ export default function Home() {
               </button>
             </form>
 
-            {/* Results */}
+            {/* ═══════ RESULTS ═══════ */}
             {analysis && (
               <div ref={resultsRef} className="mt-14">
                 <div className="glow-line mb-8" />
