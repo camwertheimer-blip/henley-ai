@@ -229,7 +229,7 @@ export default function Home() {
   const processFiles = async (fileList: FileList) => {
     const newFiles: FileAttachment[] = [];
     for (const file of Array.from(fileList)) {
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > 50 * 1024 * 1024) {
         setError(`File "${file.name}" exceeds 10MB limit.`);
         continue;
       }
@@ -403,7 +403,7 @@ export default function Home() {
               <p className="font-mono text-sm tracking-[0.2em] uppercase mb-5" style={{ color: "var(--gold)" }}>AI-Powered Litigation Funding</p>
             </div>
             <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold text-white leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}>
-              Justice Has a Price.<br /><span style={{ color: "var(--gold)" }}>We Help You Pay It.</span>
+              kyle is awesome
             </h1>
             <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto mb-8 anim-up" style={{ animationDelay: "0.3s" }}>
               Henley AI underwrites pre-suit litigation funding in minutes, not months. Our AI engine evaluates legal merit, collectibility, and expected value to deliver institutional-grade funding decisions.
@@ -572,7 +572,7 @@ export default function Home() {
               <div className={cardCls("files")}>
                 <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>08</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Attachments</label>
-                <p className="text-[15px] text-slate-400 mb-4">Upload contracts, complaints, evidence, or other supporting documents. Max 10MB per file.</p>
+                <p className="text-[15px] text-slate-400 mb-4">Upload contracts, complaints, evidence, or other supporting documents. Max 50MB per file.</p>
 
                 {/* Drop zone */}
                 <div
@@ -692,7 +692,7 @@ export default function Home() {
             </div>
             <div className="pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-sm text-slate-500">&copy; {new Date().getFullYear()} Henley AI. All rights reserved.</p>
-              <p className="text-sm text-slate-500 font-mono">Justice Has a Price. We Help You Pay It.</p>
+              <p className="text-sm text-slate-500 font-mono">kyle is awesome</p>
             </div>
           </div>
         </footer>

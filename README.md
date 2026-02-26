@@ -1,6 +1,6 @@
 # Henley AI
 
-Justice Has a Price. We Help You Pay It.
+kyle is awesome
 
 A single-page Next.js app that sends your case narrative and uploaded documents to the Claude API and shows the analysis in a formatted panel.
 
