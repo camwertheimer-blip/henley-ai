@@ -402,7 +402,6 @@ export default function Home() {
             <div className="anim-up" style={{ animationDelay: "0.1s" }}>
               <p className="font-mono text-sm tracking-[0.2em] uppercase mb-5" style={{ color: "var(--gold)" }}>AI-Powered Litigation Funding</p>
             </div>
-            </div>
             <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold text-white leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}>
               Democratizing Legal Access
             </h1>
