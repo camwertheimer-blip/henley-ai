@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Henley AI",
-  description: "kyle is awesome",
+  description: "Democratizing Legal Access",
 };
 
 export default function RootLayout({
