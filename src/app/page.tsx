@@ -403,9 +403,8 @@ export default function Home() {
               <p className="font-mono text-sm tracking-[0.2em] uppercase mb-5" style={{ color: "var(--gold)" }}>AI-Powered Litigation Funding</p>
             </div>
             </div>
-            <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}>
-              <span className="text-white">live by the sword,</span><br />
-              <span style={{ color: "#d4793a" }}>die by the sword</span>
+            <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold text-white leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}>
+              Democratizing Legal Access
             </h1>
             <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto mb-8 anim-up" style={{ animationDelay: "0.3s" }}>
               Henley AI underwrites pre-suit litigation funding in minutes, not months. Our AI engine evaluates legal merit, collectibility, and expected value to deliver institutional-grade funding decisions.
@@ -694,7 +693,7 @@ export default function Home() {
             </div>
             <div className="pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-sm text-slate-500">&copy; {new Date().getFullYear()} Henley AI. All rights reserved.</p>
-              <p className="text-sm text-slate-500 font-mono">live by the sword, die by the sword</p>
+              <p className="text-sm text-white font-mono">Democratizing Legal Access</p>
             </div>
           </div>
         </footer>
