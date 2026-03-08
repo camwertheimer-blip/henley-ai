@@ -588,7 +588,7 @@ export default function Home() {
               <div className={cardCls("counterclaims")}>
                 <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>08</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Counterclaims</label>
-                <p className="text-[15px] text-slate-400 mb-4">Has the defendant filed or threatened counterclaims against the plaintiff?</p>
+                <p className="text-[15px] text-slate-400 mb-4">In your assessment, does the defendant have viable grounds for a counterclaim, and do you expect one to be filed? Detail any known or anticipated counterclaims below.</p>
                 <div className="grid gap-3 sm:grid-cols-4">
                   {COUNTERCLAIM_OPTS.map((opt) => {
                     const active = form.counterclaimsStatus === opt.value;
