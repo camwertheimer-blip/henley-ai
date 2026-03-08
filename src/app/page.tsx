@@ -141,25 +141,24 @@ function Particles() {
    STEP NAV
    ═══════════════════════════════════════════════════════ */
 
-function StepNav({ current, form, files, onNavigate }: {
+function StepNav({ current, form, files, visitedSteps, onNavigate }: {
   current: number;
   form: FormData;
   files: FileAttachment[];
+  visitedSteps: Set<number>;
   onNavigate: (step: number) => void;
 }) {
   return (
     <div className="flex items-center justify-center gap-0 mb-10">
       {STEPS.map((step, idx) => {
-        const complete = isStepComplete(step.num, form, files);
+        const complete = visitedSteps.has(step.num) && isStepComplete(step.num, form, files);
         const active = current === step.num;
-        const accessible = step.num === 1 || isStepComplete(step.num - 1, form, files) || complete;
         return (
           <div key={step.num} className="flex items-center">
             <button
               type="button"
-              disabled={!accessible}
-              onClick={() => accessible && onNavigate(step.num)}
-              className={`flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 disabled:cursor-not-allowed ${accessible ? "cursor-pointer" : "opacity-30"}`}
+              onClick={() => onNavigate(step.num)}
+              className="flex flex-col items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 cursor-pointer"
             >
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold font-mono transition-all duration-200 ${
                 active ? "bg-sky-500 text-white shadow-[0_0_16px_rgba(74,158,255,0.4)]"
@@ -177,7 +176,7 @@ function StepNav({ current, form, files, onNavigate }: {
               </span>
             </button>
             {idx < STEPS.length - 1 && (
-              <div className={`w-6 h-px mx-1 transition-colors duration-300 ${isStepComplete(step.num, form, files) ? "bg-emerald-500/30" : "bg-white/[0.07]"}`} />
+              <div className={`w-6 h-px mx-1 transition-colors duration-300 ${complete ? "bg-emerald-500/30" : "bg-white/[0.07]"}`} />
             )}
           </div>
         );
@@ -228,6 +227,7 @@ export default function Home() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
+  const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
   const [rawText, setRawText] = useState("");
@@ -256,6 +256,7 @@ export default function Home() {
   const scrollToForm = () => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const goToStep = (step: number) => {
+    setVisitedSteps((prev) => new Set(prev).add(currentStep));
     setCurrentStep(step);
     setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   };
@@ -656,7 +657,7 @@ export default function Home() {
               <p className="text-base text-slate-300 font-light max-w-md mx-auto">Complete each section and our underwriting engine will analyze your case in under 60 seconds.</p>
             </div>
 
-            <StepNav current={currentStep} form={form} files={files} onNavigate={goToStep} />
+            <StepNav current={currentStep} form={form} files={files} visitedSteps={visitedSteps} onNavigate={goToStep} />
 
             <div ref={stepCardRef} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8 anim-in" key={currentStep}>
               <div className="flex items-center justify-between mb-7">
