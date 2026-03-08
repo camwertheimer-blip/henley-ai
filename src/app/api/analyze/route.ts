@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
       firmName,
       attorneyName,
       feeStructure,
+      counterclaimsStatus,
+      counterclaimDescription,
       attachments,
     } = body as {
       caseNarrative: string;
@@ -36,6 +38,8 @@ export async function POST(request: NextRequest) {
       firmName: string;
       attorneyName: string;
       feeStructure: string;
+      counterclaimsStatus: "none" | "filed" | "threatened" | "unknown";
+      counterclaimDescription: string;
       attachments?: { name: string; content: string; type: string }[];
     };
 
@@ -63,6 +67,18 @@ export async function POST(request: NextRequest) {
       repStatus = "Preliminary Only — exploring options";
     }
 
+    // Assemble counterclaims field
+    let counterclaimsField = "Not disclosed";
+    if (counterclaimsStatus === "none") {
+      counterclaimsField = "None filed or threatened";
+    } else if (counterclaimsStatus === "filed") {
+      counterclaimsField = `Filed${counterclaimDescription ? `\n  Details: ${counterclaimDescription}` : ""}`;
+    } else if (counterclaimsStatus === "threatened") {
+      counterclaimsField = `Threatened${counterclaimDescription ? `\n  Details: ${counterclaimDescription}` : ""}`;
+    } else if (counterclaimsStatus === "unknown") {
+      counterclaimsField = "Unknown — plaintiff has not confirmed counterclaim status";
+    }
+
     let userMessage = `=== LITIGATION FUNDING APPLICATION ===
 
 CASE NARRATIVE:
@@ -84,7 +100,10 @@ FUNDING REQUEST (USD):
 $${fundingRequest || "Not specified"}
 
 LEGAL REPRESENTATION:
-${repStatus}`;
+${repStatus}
+
+COUNTERCLAIMS:
+${counterclaimsField}`;
 
     // Build content blocks for Claude API
     const contentBlocks: { type: string; text?: string; source?: { type: string; media_type: string; data: string } }[] = [];

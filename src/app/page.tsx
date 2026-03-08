@@ -17,6 +17,8 @@ interface FormData {
   firmName: string;
   attorneyName: string;
   feeStructure: string;
+  counterclaimsStatus: "none" | "filed" | "threatened" | "unknown";
+  counterclaimDescription: string;
 }
 
 interface FileAttachment {
@@ -42,6 +44,8 @@ const EMPTY_FORM: FormData = {
   firmName: "",
   attorneyName: "",
   feeStructure: "",
+  counterclaimsStatus: "none",
+  counterclaimDescription: "",
 };
 
 const FIELDS: {
@@ -96,6 +100,17 @@ const RADIOS: {
   { value: "represented", label: "Represented", desc: "Have counsel engaged" },
   { value: "seeking", label: "Seeking", desc: "Looking for counsel" },
   { value: "preliminary", label: "Preliminary", desc: "Exploring options" },
+];
+
+const COUNTERCLAIM_OPTS: {
+  value: FormData["counterclaimsStatus"];
+  label: string;
+  desc: string;
+}[] = [
+  { value: "none", label: "None", desc: "No counterclaims filed or threatened" },
+  { value: "filed", label: "Filed", desc: "Counterclaims on record" },
+  { value: "threatened", label: "Threatened", desc: "Defendant has signaled intent" },
+  { value: "unknown", label: "Unknown", desc: "Status not yet confirmed" },
 ];
 
 /* ═══════════════════════════════════════════════════════
@@ -230,7 +245,7 @@ export default function Home() {
     const newFiles: FileAttachment[] = [];
     for (const file of Array.from(fileList)) {
       if (file.size > 50 * 1024 * 1024) {
-        setError(`File "${file.name}" exceeds 10MB limit.`);
+        setError(`File "${file.name}" exceeds 50MB limit.`);
         continue;
       }
       const base64 = await new Promise<string>((resolve, reject) => {
@@ -330,7 +345,6 @@ export default function Home() {
         throw new Error(e.error || `Error ${res.status}`);
       }
       const data = await res.json();
-      // Backend returns { response: text }
       const t = data.response || data.analysis || data.content || data.message || data.text || "";
       if (!t) {
         throw new Error("Empty response from analysis engine. Please try again.");
@@ -348,6 +362,8 @@ export default function Home() {
     `relative rounded-2xl border transition-all duration-300 p-5 md:p-6 ${focus === field
       ? "border-sky-400/35 bg-white/[0.06] shadow-[0_0_30px_rgba(56,139,253,0.08)]"
       : "border-white/[0.08] bg-white/[0.035] hover:border-white/[0.14]"}`;
+
+  const showCounterclaimDetail = form.counterclaimsStatus === "filed" || form.counterclaimsStatus === "threatened";
 
   return (
     <>
@@ -486,7 +502,7 @@ export default function Home() {
 
             <form onSubmit={(e) => { e.preventDefault(); submit(); }} className="space-y-5">
 
-              {/* Fields 1-5 */}
+              {/* Fields 01–05 */}
               {FIELDS.map((f) => (
                 <div key={f.key} className={cardCls(f.key)}>
                   <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>{f.num}</span>
@@ -518,7 +534,7 @@ export default function Home() {
                 </div>
               ))}
 
-              {/* Field 6 — Funding Request */}
+              {/* Field 06 — Funding Request */}
               <div className={cardCls("fundingRequest")}>
                 <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>06</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Funding Request</label>
@@ -529,7 +545,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Field 7 — Legal Representation */}
+              {/* Field 07 — Legal Representation */}
               <div className={cardCls("rep")}>
                 <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>07</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Legal Representation</label>
@@ -568,9 +584,53 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* ═══════ FILE ATTACHMENTS ═══════ */}
-              <div className={cardCls("files")}>
+              {/* Field 08 — Counterclaims */}
+              <div className={cardCls("counterclaims")}>
                 <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>08</span>
+                <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Counterclaims</label>
+                <p className="text-[15px] text-slate-400 mb-4">Has the defendant filed or threatened counterclaims against the plaintiff?</p>
+                <div className="grid gap-3 sm:grid-cols-4">
+                  {COUNTERCLAIM_OPTS.map((opt) => {
+                    const active = form.counterclaimsStatus === opt.value;
+                    return (
+                      <button type="button" key={opt.value} disabled={loading} onClick={() => set("counterclaimsStatus", opt.value)} className={`text-left rounded-xl border p-4 transition-all duration-200 disabled:opacity-30 ${active ? "border-sky-400/35 bg-sky-500/[0.08]" : "border-white/[0.07] bg-white/[0.02] hover:border-white/[0.12]"}`}>
+                        <div className="flex items-center gap-2.5 mb-1.5">
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-colors ${active ? "border-sky-400" : "border-slate-500"}`}>
+                            {active && <div className="w-1.5 h-1.5 rounded-full bg-sky-400" />}
+                          </div>
+                          <span className="text-[15px] font-medium text-slate-200">{opt.label}</span>
+                        </div>
+                        <p className="text-sm text-slate-400 pl-6 leading-snug">{opt.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Conditional detail field for filed / threatened */}
+                <div className="overflow-hidden transition-all duration-500 ease-in-out" style={{ maxHeight: showCounterclaimDetail ? "200px" : "0px", opacity: showCounterclaimDetail ? 1 : 0, marginTop: showCounterclaimDetail ? "14px" : "0px" }}>
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-5">
+                    <label className="block text-xs font-semibold uppercase tracking-[0.12em] mb-2 text-slate-400">
+                      {form.counterclaimsStatus === "filed" ? "Counterclaim Details" : "Nature of Threatened Counterclaim"}
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={form.counterclaimDescription}
+                      disabled={loading}
+                      onChange={(e) => set("counterclaimDescription", e.target.value)}
+                      onFocus={() => setFocus("counterclaimDescription")}
+                      onBlur={() => setFocus(null)}
+                      placeholder={form.counterclaimsStatus === "filed"
+                        ? "Describe the theory, claimed amount, and current procedural status..."
+                        : "Describe what the defendant has indicated they intend to claim and on what basis..."}
+                      className="w-full bg-transparent resize-y text-[15px] leading-relaxed text-slate-200 placeholder:text-slate-500/40 outline-none disabled:opacity-30"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Field 09 — Attachments */}
+              <div className={cardCls("files")}>
+                <span className="absolute top-3 right-5 text-[32px] font-bold leading-none pointer-events-none select-none font-mono" style={{ color: "rgba(74,158,255,0.07)" }}>09</span>
                 <label className="block text-sm font-semibold uppercase tracking-[0.1em] mb-1 text-sky-400/90">Attachments</label>
                 <p className="text-[15px] text-slate-400 mb-4">Upload contracts, complaints, evidence, or other supporting documents. Max 50MB per file.</p>
 
