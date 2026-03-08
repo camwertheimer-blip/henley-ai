@@ -26,6 +26,9 @@ export async function POST(request: NextRequest) {
       feeStructure,
       counterclaimsStatus,
       counterclaimDescription,
+      contactName,
+      contactEmail,
+      contactPhone,
       attachments,
     } = body as {
       caseNarrative: string;
@@ -40,6 +43,9 @@ export async function POST(request: NextRequest) {
       feeStructure: string;
       counterclaimsStatus: "none" | "filed" | "threatened" | "unknown";
       counterclaimDescription: string;
+      contactName: string;
+      contactEmail: string;
+      contactPhone: string;
       attachments?: { name: string; content: string; type: string }[];
     };
 
@@ -103,7 +109,10 @@ LEGAL REPRESENTATION:
 ${repStatus}
 
 COUNTERCLAIMS:
-${counterclaimsField}`;
+${counterclaimsField}
+
+SUBMITTED BY:
+${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""}${contactPhone ? `\nPhone: ${contactPhone}` : ""}`;
 
     // Build content blocks for Claude API
     const contentBlocks: { type: string; text?: string; source?: { type: string; media_type: string; data: string } }[] = [];
