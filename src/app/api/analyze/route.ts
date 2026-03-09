@@ -147,7 +147,7 @@ ${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
-        max_tokens: 32000,
+        max_tokens: 100000,
         stream: true,
         system: systemPrompt,
         messages: [{ role: "user", content: contentBlocks }],
