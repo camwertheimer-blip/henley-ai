@@ -146,7 +146,7 @@ ${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""
           "anthropic-beta": "output-128k-2025-02-19",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-sonnet-4-6",
         max_tokens: 100000,
         stream: true,
         system: systemPrompt,
