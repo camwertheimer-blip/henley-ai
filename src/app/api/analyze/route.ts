@@ -1,14 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "ANTHROPIC_API_KEY is not set. Add it to your environment." },
-        { status: 500 }
+      return new Response(
+        JSON.stringify({ error: "ANTHROPIC_API_KEY is not set. Add it to your environment." }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -53,14 +55,14 @@ export async function POST(request: NextRequest) {
     const projectRoot = process.cwd();
     const systemPromptPath = join(projectRoot, "system_prompt.txt");
     if (!existsSync(systemPromptPath)) {
-      return NextResponse.json(
-        { error: `system_prompt.txt not found at ${systemPromptPath}. Ensure it exists at the project root.` },
-        { status: 500 }
+      return new Response(
+        JSON.stringify({ error: `system_prompt.txt not found at ${systemPromptPath}.` }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
     const systemPrompt = readFileSync(systemPromptPath, "utf-8");
 
-    // Assemble structured user message
+    // Assemble representation status
     let repStatus = representationStatus || "Not specified";
     if (representationStatus === "represented") {
       repStatus = `Represented`;
@@ -114,21 +116,16 @@ ${counterclaimsField}
 SUBMITTED BY:
 ${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""}${contactPhone ? `\nPhone: ${contactPhone}` : ""}`;
 
-    // Build content blocks for Claude API
+    // Build content blocks
     const contentBlocks: { type: string; text?: string; source?: { type: string; media_type: string; data: string } }[] = [];
 
-    // Add document attachments if present
     if (attachments?.length) {
       userMessage += "\n\n--- ATTACHED DOCUMENTS ---\n";
       for (const doc of attachments) {
         if (doc.type.startsWith("image/")) {
           contentBlocks.push({
             type: "image",
-            source: {
-              type: "base64",
-              media_type: doc.type,
-              data: doc.content,
-            },
+            source: { type: "base64", media_type: doc.type, data: doc.content },
           });
           userMessage += `\n[Image attachment: ${doc.name}]`;
         } else {
@@ -139,42 +136,83 @@ ${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""
 
     contentBlocks.unshift({ type: "text", text: userMessage });
 
-    const response = await fetch(
-      "https://api.anthropic.com/v1/messages",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-5",
-          max_tokens: 16000,
-          system: systemPrompt,
-          messages: [{ role: "user", content: contentBlocks }],
-        }),
-      }
-    );
+    // Call Anthropic with stream: true
+    const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-5",
+        max_tokens: 16000,
+        stream: true,
+        system: systemPrompt,
+        messages: [{ role: "user", content: contentBlocks }],
+      }),
+    });
 
-    if (!response.ok) {
-      const err = await response.text();
-      return NextResponse.json(
-        { error: `Claude API error: ${response.status} - ${err}` },
-        { status: response.status }
+    if (!anthropicResponse.ok) {
+      const err = await anthropicResponse.text();
+      return new Response(
+        JSON.stringify({ error: `Claude API error: ${anthropicResponse.status} - ${err}` }),
+        { status: anthropicResponse.status, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const data = await response.json();
-    const text =
-      data.content?.find((c: { type: string }) => c.type === "text")?.text ?? "";
+    // Pipe text tokens directly to the client
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        const reader = anthropicResponse.body!.getReader();
+        const decoder = new TextDecoder();
 
-    return NextResponse.json({ response: text });
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (!line.startsWith("data: ")) continue;
+              const data = line.slice(6).trim();
+              if (!data || data === "[DONE]") continue;
+
+              try {
+                const parsed = JSON.parse(data);
+                if (
+                  parsed.type === "content_block_delta" &&
+                  parsed.delta?.type === "text_delta" &&
+                  parsed.delta?.text
+                ) {
+                  controller.enqueue(encoder.encode(parsed.delta.text));
+                }
+              } catch {
+                // Skip malformed SSE lines
+              }
+            }
+          }
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-cache",
+      },
+    });
   } catch (e) {
     console.error(e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Analysis failed" },
-      { status: 500 }
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Analysis failed" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 }

@@ -330,12 +330,26 @@ export default function Home() {
       const payload = { ...form, attachments: files.length > 0 ? files : undefined };
       const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
-      const data = await res.json();
-      const t = data.response || data.analysis || data.content || data.message || data.text || "";
-      if (!t) throw new Error("Empty response from analysis engine. Please try again.");
-      setRawText(t);
-      setAnalysis(parseResponse(t));
+      if (!res.body) throw new Error("No response body from analysis engine.");
+
+      // Stream tokens as they arrive
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      // Scroll to results area as soon as streaming starts
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        setRawText(fullText);
+      }
+
+      if (!fullText) throw new Error("Empty response from analysis engine. Please try again.");
+      setAnalysis(parseResponse(fullText));
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
     finally { setLoading(false); }
   };
@@ -709,6 +723,24 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* ═══════ STREAMING PREVIEW ═══════ */}
+        {loading && rawText && (
+          <section className="py-8 px-6">
+            <div className="max-w-[720px] mx-auto" ref={resultsRef}>
+              <div className="glow-line mb-8" />
+              <div className="mb-4 flex items-center gap-3">
+                <svg className="w-4 h-4 text-sky-400 shrink-0" style={{ animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50 20" />
+                </svg>
+                <p className="font-mono text-xs text-slate-500 uppercase tracking-[0.15em]">Analyzing — streaming output</p>
+              </div>
+              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6">
+                <pre className="text-[15px] text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">{rawText}</pre>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ═══════ RESULTS ═══════ */}
         {analysis && (
