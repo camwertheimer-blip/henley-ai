@@ -235,6 +235,7 @@ export default function Home() {
   const [focus, setFocus] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [copied, setCopied] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -352,6 +353,69 @@ export default function Home() {
       setAnalysis(parseResponse(fullText));
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
     finally { setLoading(false); }
+  };
+
+  /* ── Export functions ── */
+  const copyText = async () => {
+    if (!rawText) return;
+    await navigator.clipboard.writeText(rawText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const exportPDF = () => {
+    if (!rawText) return;
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>Henley AI — Underwriting Report</title>
+<style>
+  body { font-family: Georgia, serif; max-width: 800px; margin: 40px auto; padding: 0 40px; color: #1a1a1a; line-height: 1.7; }
+  h1 { font-size: 22px; border-bottom: 2px solid #1B2A4A; padding-bottom: 10px; color: #1B2A4A; }
+  .meta { font-size: 12px; color: #666; margin-bottom: 30px; font-family: monospace; }
+  pre { white-space: pre-wrap; font-family: Georgia, serif; font-size: 14px; line-height: 1.7; }
+  @media print { body { margin: 20px; padding: 0 20px; } }
+</style>
+</head>
+<body>
+<h1>Henley AI — Underwriting Report</h1>
+<div class="meta">${date} · Henley AI v1.0 · Confidential</div>
+<pre>${rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+</body>
+</html>`;
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    setTimeout(() => { win.print(); }, 500);
+  };
+
+  const exportWord = () => {
+    if (!rawText) return;
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"/><title>Henley AI Underwriting Report</title>
+<style>
+  body { font-family: Calibri, sans-serif; font-size: 11pt; line-height: 1.6; margin: 1in; color: #1a1a1a; }
+  h1 { font-size: 16pt; color: #1B2A4A; border-bottom: 1pt solid #B8962E; padding-bottom: 6pt; }
+  .meta { font-size: 9pt; color: #666; margin-bottom: 24pt; }
+  pre { font-family: Calibri, sans-serif; font-size: 11pt; white-space: pre-wrap; }
+</style></head>
+<body>
+<h1>Henley AI — Underwriting Report</h1>
+<div class="meta">${date} · Henley AI v1.0 · Confidential — Proprietary Underwriting Methodology</div>
+<pre>${rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
+</body></html>`;
+    const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Henley_AI_Report_${new Date().toISOString().slice(0, 10)}.doc`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const inputCls = "w-full bg-transparent text-base text-slate-200 placeholder:text-slate-500/50 outline-none border-b border-white/[0.08] pb-2 focus:border-sky-400/40 transition-colors disabled:opacity-30";
@@ -748,8 +812,32 @@ export default function Home() {
             <div className="max-w-[720px] mx-auto" ref={resultsRef}>
               <div className="glow-line mb-8" />
               <div className="mb-6 anim-up">
-                <h2 className="font-display text-2xl md:text-3xl text-white font-semibold mb-2">Underwriting Report</h2>
-                <p className="text-sm text-slate-400 font-mono">{new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} · Henley AI v1.0</p>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <h2 className="font-display text-2xl md:text-3xl text-white font-semibold mb-2">Underwriting Report</h2>
+                    <p className="text-sm text-slate-400 font-mono">{new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} · Henley AI v1.0</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <button onClick={copyText}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
+                      {copied ? (
+                        <><svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg><span className="text-emerald-400">Copied</span></>
+                      ) : (
+                        <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy</>
+                      )}
+                    </button>
+                    <button onClick={exportWord}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                      Word
+                    </button>
+                    <button onClick={exportPDF}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+                      PDF
+                    </button>
+                  </div>
+                </div>
               </div>
               <div className="space-y-4">
                 {analysis.map((s, i) => <ResultCard key={i} section={s} index={i} />)}
