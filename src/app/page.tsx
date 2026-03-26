@@ -351,6 +351,18 @@ export default function Home() {
 
       if (!fullText) throw new Error("Empty response from analysis engine. Please try again.");
       setAnalysis(parseResponse(fullText));
+
+      // Log submission to Google Sheets
+      try {
+        await fetch("/api/log-submission", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ formData: form, analysisOutput: fullText }),
+        });
+      } catch (logErr) {
+        console.error("Logging failed (non-fatal):", logErr);
+      }
+
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
     finally { setLoading(false); }
   };

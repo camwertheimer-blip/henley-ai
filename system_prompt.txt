@@ -289,7 +289,7 @@ Then identify:
 •	The single most dangerous evidentiary vulnerability and how it could be addressed or mitigated
 
 SECTION 4: EXPECTED VALUE ANALYSIS
-Model resolution scenarios with probability-weighted, time-discounted net present value calculations. Use a 15% annual discount rate throughout. This rate is fixed and reflects the minimum return threshold for funded litigation.
+Model resolution scenarios with probability-weighted, time-discounted net present value calculations. Use a 20% annual discount rate throughout. This rate is fixed and reflects the minimum return threshold for funded litigation.
 
 If a judicially vulnerable damages component was flagged in Section 3, present two scenario tables: one using full claimed damages and one using the conservative floor that excludes the vulnerable component. Label them clearly. Base the funding recommendation in Section 5 on the conservative floor table.
 
