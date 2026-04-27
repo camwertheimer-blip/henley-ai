@@ -9,6 +9,8 @@ import { useState, useRef, useEffect, useCallback } from "react";
 interface FormData {
   caseNarrative: string;
   jurisdiction: string;
+  proceduralStep: string;
+  proceduralStepNotes: string;
   keyDocuments: string;
   defendantProfile: string;
   damagesEstimate: string;
@@ -40,6 +42,8 @@ interface AnalysisSection {
 const EMPTY_FORM: FormData = {
   caseNarrative: "",
   jurisdiction: "",
+  proceduralStep: "",
+  proceduralStepNotes: "",
   keyDocuments: "",
   defendantProfile: "",
   damagesEstimate: "",
@@ -76,6 +80,21 @@ const COUNTERCLAIM_OPTS: { value: FormData["counterclaimsStatus"]; label: string
   { value: "filed", label: "Filed", desc: "Counterclaims on record" },
   { value: "threatened", label: "Threatened", desc: "Defendant has signaled intent" },
   { value: "unknown", label: "Unknown", desc: "Status not yet confirmed" },
+];
+
+const PROCEDURAL_STEPS: { value: string; label: string }[] = [
+  { value: "pre-suit", label: "Pre-suit / demand letter sent" },
+  { value: "complaint-drafted", label: "Complaint drafted, not yet filed" },
+  { value: "complaint-filed", label: "Complaint filed" },
+  { value: "answer-pending", label: "Answer / responsive pleading pending" },
+  { value: "motion-to-dismiss", label: "Motion to dismiss pending" },
+  { value: "discovery", label: "Discovery underway" },
+  { value: "summary-judgment", label: "Summary judgment briefed or pending" },
+  { value: "mediation-arbitration", label: "Mediation / arbitration" },
+  { value: "trial-scheduled", label: "Trial scheduled" },
+  { value: "post-judgment", label: "Post-judgment / collection" },
+  { value: "appeal", label: "On appeal" },
+  { value: "other", label: "Other (describe in notes)" },
 ];
 
 /* ═══════════════════════════════════════════════════════
@@ -140,7 +159,7 @@ By checking the acceptance box and submitting the form, the Submitter acknowledg
 
 function isStepComplete(step: number, form: FormData, files: FileAttachment[]): boolean {
   switch (step) {
-    case 1: return form.caseNarrative.trim().length > 0;
+    case 1: return form.caseNarrative.trim().length > 0 && form.proceduralStep.trim().length > 0;
     case 2: return form.defendantProfile.trim().length > 0;
     case 3: return form.fundingRequest.trim().length > 0;
     case 4: return true;
@@ -541,6 +560,39 @@ export default function Home() {
             </Field>
             <Field label="Jurisdiction" hint="Identify the court or jurisdiction — e.g., Southern District of New York, Miami-Dade County Circuit Court.">
               <input type="text" value={form.jurisdiction} disabled={loading} onChange={(e) => set("jurisdiction", e.target.value)} onFocus={() => setFocus("jurisdiction")} onBlur={() => setFocus(null)} placeholder="Begin typing..." className={inputCls} />
+            </Field>
+            <Field label="Current Procedural Step" hint="Where the matter currently stands in its litigation lifecycle.">
+              <div className="relative">
+                <select
+                  value={form.proceduralStep}
+                  disabled={loading}
+                  onChange={(e) => set("proceduralStep", e.target.value)}
+                  onFocus={() => setFocus("proceduralStep")}
+                  onBlur={() => setFocus(null)}
+                  className="w-full bg-transparent text-base text-slate-200 outline-none border-b border-white/[0.08] pb-2 pr-8 focus:border-sky-400/40 transition-colors disabled:opacity-30 appearance-none cursor-pointer"
+                  style={{ colorScheme: "dark" }}
+                >
+                  <option value="" disabled style={{ background: "#162036", color: "#94a3b8" }}>Select procedural status...</option>
+                  {PROCEDURAL_STEPS.map((opt) => (
+                    <option key={opt.value} value={opt.value} style={{ background: "#162036", color: "#e2e8f0" }}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <svg className="w-4 h-4 absolute right-1 top-2 pointer-events-none text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+              <textarea
+                rows={2}
+                value={form.proceduralStepNotes}
+                disabled={loading}
+                onChange={(e) => set("proceduralStepNotes", e.target.value)}
+                onFocus={() => setFocus("proceduralStepNotes")}
+                onBlur={() => setFocus(null)}
+                placeholder="Optional — add deadlines, hearing dates, or other procedural context..."
+                className={`${textareaCls} mt-3 text-sm`}
+              />
             </Field>
             <Field label="Key Documents & Legal Basis" hint="Identify the primary legal basis and key supporting documents — contracts, statutes, filings, or precedent.">
               <textarea rows={4} value={form.keyDocuments} disabled={loading} onChange={(e) => set("keyDocuments", e.target.value)} onFocus={() => setFocus("keyDocuments")} onBlur={() => setFocus(null)} placeholder="Begin typing..." className={textareaCls} />

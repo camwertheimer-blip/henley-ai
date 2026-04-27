@@ -95,6 +95,8 @@ export async function POST(request: NextRequest) {
       `Name: ${name}\nEmail: ${emailAddr}\nPhone: ${phone}\n\n` +
       `CASE NARRATIVE:\n${formData.caseNarrative || ""}\n\n` +
       `JURISDICTION:\n${formData.jurisdiction || ""}\n\n` +
+      `CURRENT PROCEDURAL STEP:\n${formData.proceduralStep || ""}` +
+      (formData.proceduralStepNotes ? `\n  Notes: ${formData.proceduralStepNotes}` : "") + `\n\n` +
       `KEY DOCUMENTS & LEGAL BASIS:\n${formData.keyDocuments || ""}\n\n` +
       `DEFENDANT & ASSET PROFILE:\n${formData.defendantProfile || ""}\n\n` +
       `DAMAGES ESTIMATE:\n${formData.damagesEstimate || ""}\n\n` +
