@@ -22,6 +22,7 @@ interface FormData {
   contactName: string;
   contactEmail: string;
   contactPhone: string;
+  termsAccepted: boolean;
 }
 
 interface FileAttachment {
@@ -52,6 +53,7 @@ const EMPTY_FORM: FormData = {
   contactName: "",
   contactEmail: "",
   contactPhone: "",
+  termsAccepted: false,
 };
 
 const STEPS = [
@@ -77,6 +79,62 @@ const COUNTERCLAIM_OPTS: { value: FormData["counterclaimsStatus"]; label: string
 ];
 
 /* ═══════════════════════════════════════════════════════
+   TERMS & CONDITIONS
+   ═══════════════════════════════════════════════════════ */
+
+const TERMS_TEXT = `By submitting information, documents or materials through this website (the "Submission"), you ("Submitter") agree to the following terms:
+
+1. PURPOSE OF SUBMISSION
+The Submission is made solely for the purpose of enabling Henley Lord Holdings, a Delaware limited liability company ("Henley"), to evaluate a potential litigation finance transaction. No other purpose is intended or authorized.
+
+2. CONFIDENTIALITY
+Henley agrees to treat the information provided in the Submission as confidential and to use it solely for the purpose of evaluating a potential transaction. Henley may disclose such information only to:
+  • its employees, officers, directors and affiliates;
+  • its external legal, financial, technical or strategic advisors;
+  • current or prospective investors, fund vehicles, or financing sources;
+  • insurers, auditors or compliance providers;
+provided that such recipients are subject to confidentiality obligations (contractual, professional or fiduciary).
+
+Confidentiality obligations shall not apply to information that:
+  (a) is or becomes publicly available other than through breach of these terms;
+  (b) was already lawfully known to Henley prior to the Submission;
+  (c) is independently developed without use of the submitted information;
+  (d) is required to be disclosed by law, regulation or court order.
+
+3. NO ATTORNEY-CLIENT RELATIONSHIP
+The Submission does not create any attorney-client relationship, fiduciary relationship, partnership, joint venture, or agency relationship between the Submitter and Henley. Henley does not provide legal advice.
+
+4. NO OBLIGATION TO FINANCE
+Henley has no obligation to enter into any transaction, provide funding, or continue discussions. Any financing arrangement shall only arise pursuant to a definitive written agreement executed by authorized representatives of Henley.
+
+5. SIMILAR OPPORTUNITIES
+Submitter acknowledges that:
+  • Henley may currently be evaluating or financing matters similar to the Submission;
+  • Henley may independently develop or receive information similar to the Submission;
+  • nothing in these terms restricts Henley from pursuing opportunities that are similar to or competitive with the Submission, provided that Henley does not misuse confidential information in breach of these terms.
+
+6. NO EXCLUSIVITY
+Submission of information does not grant exclusivity, priority rights, or any right to compensation unless expressly agreed in writing.
+
+7. ACCURACY OF INFORMATION
+Submitter represents that:
+  • it is authorized to share the submitted information;
+  • disclosure does not violate any applicable confidentiality obligation;
+  • the information provided is accurate to the best of its knowledge.
+
+8. LIMITATION OF LIABILITY
+Henley shall not be liable for any indirect, incidental, consequential or punitive damages arising out of or relating to the Submission or evaluation process.
+
+9. DATA PROTECTION
+Personal data, if any, will be processed solely for the purpose of evaluating the potential transaction and in accordance with applicable data protection laws and Henley's Privacy Policy.
+
+10. GOVERNING LAW AND JURISDICTION
+These Terms shall be governed by the laws of the State of Delaware, without regard to conflict of law principles. Any dispute arising out of or relating to these Terms shall be subject to the exclusive jurisdiction of the state and federal courts located in Delaware.
+
+11. ACCEPTANCE
+By checking the acceptance box and submitting the form, the Submitter acknowledges and agrees to be legally bound by these Terms.`;
+
+/* ═══════════════════════════════════════════════════════
    STEP COMPLETENESS
    ═══════════════════════════════════════════════════════ */
 
@@ -87,7 +145,7 @@ function isStepComplete(step: number, form: FormData, files: FileAttachment[]): 
     case 3: return form.fundingRequest.trim().length > 0;
     case 4: return true;
     case 5: return true;
-    case 6: return form.contactName.trim().length > 0 && form.contactEmail.trim().length > 0;
+    case 6: return form.contactName.trim().length > 0 && form.contactEmail.trim().length > 0 && form.termsAccepted;
     default: return false;
   }
 }
@@ -236,6 +294,15 @@ export default function Home() {
   const [scrolled, setScrolled] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  /* Gateway: "pick" | "form" | "contact" — controls the submission area UI */
+  const [mode, setMode] = useState<"pick" | "form" | "contact">("pick");
+
+  /* Contact-form mode state (separate from the 6-step intake) */
+  const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
+  const [contactSending, setContactSending] = useState(false);
+  const [contactSent, setContactSent] = useState(false);
+  const [contactError, setContactError] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -247,7 +314,7 @@ export default function Home() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  const set = useCallback((k: keyof FormData, v: string) => setForm((f) => ({ ...f, [k]: v })), []);
+  const set = useCallback(<K extends keyof FormData>(k: K, v: FormData[K]) => setForm((f) => ({ ...f, [k]: v })), []);
 
   const fmtCurrency = (s: string) => {
     const d = s.replace(/\D/g, "");
@@ -365,6 +432,33 @@ export default function Home() {
 
     } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
     finally { setLoading(false); }
+  };
+
+  /* Contact-form submission (separate from the 6-step intake) */
+  const submitContact = async () => {
+    setContactError("");
+    if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
+      setContactError("Please fill in name, email, and message.");
+      return;
+    }
+    setContactSending(true);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(contactForm),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `Error ${res.status}`);
+      }
+      setContactSent(true);
+      setContactForm({ name: "", email: "", message: "" });
+    } catch (e: unknown) {
+      setContactError(e instanceof Error ? e.message : "Failed to send message.");
+    } finally {
+      setContactSending(false);
+    }
   };
 
   /* ── Export functions ── */
@@ -502,7 +596,7 @@ export default function Home() {
                   ]).map((sub) => (
                     <div key={sub.key}>
                       <label className="block text-xs font-semibold uppercase tracking-[0.12em] mb-1.5 text-slate-400">{sub.label}</label>
-                      <input type="text" value={form[sub.key]} disabled={loading} onChange={(e) => set(sub.key, e.target.value)} placeholder={sub.ph} className="w-full bg-transparent border-b border-white/[0.08] pb-2 text-[15px] text-slate-200 placeholder:text-slate-500/40 outline-none focus:border-sky-400/30 transition-colors disabled:opacity-30" />
+                      <input type="text" value={form[sub.key] as string} disabled={loading} onChange={(e) => set(sub.key, e.target.value)} placeholder={sub.ph} className="w-full bg-transparent border-b border-white/[0.08] pb-2 text-[15px] text-slate-200 placeholder:text-slate-500/40 outline-none focus:border-sky-400/30 transition-colors disabled:opacity-30" />
                     </div>
                   ))}
                 </div>
@@ -605,6 +699,27 @@ export default function Home() {
             <Field label="Phone Number" hint="Optional — for cases where a call is warranted.">
               <input type="tel" value={form.contactPhone} disabled={loading} onChange={(e) => set("contactPhone", e.target.value)} onFocus={() => setFocus("contactPhone")} onBlur={() => setFocus(null)} placeholder="+1 (555) 000-0000" className={inputCls} />
             </Field>
+
+            {/* ═══ TERMS & CONDITIONS ═══ */}
+            <div className="pt-4 border-t border-white/[0.06]">
+              <Field label="Terms & Conditions" hint="Please review the terms below before submitting your case.">
+                <div className="mt-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 max-h-64 overflow-y-auto">
+                  <pre className="text-[13px] text-slate-400 leading-relaxed whitespace-pre-wrap font-sans">{TERMS_TEXT}</pre>
+                </div>
+                <label className="flex items-start gap-3 mt-4 cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    checked={form.termsAccepted}
+                    disabled={loading}
+                    onChange={(e) => set("termsAccepted", e.target.checked)}
+                    className="mt-0.5 w-5 h-5 rounded border-2 border-white/[0.15] bg-white/[0.04] cursor-pointer accent-sky-500 disabled:opacity-30 shrink-0"
+                  />
+                  <span className="text-[14px] text-slate-300 leading-relaxed group-hover:text-slate-200 transition-colors">
+                    I have read and agree to the Terms & Conditions above. I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
+                  </span>
+                </label>
+              </Field>
+            </div>
           </div>
         );
 
@@ -741,13 +856,180 @@ export default function Home() {
         {/* ═══════ INTAKE FORM — WIZARD ═══════ */}
         <section id="submit" className="py-16 px-6" ref={formRef}>
           <div className="max-w-[720px] mx-auto">
-            <div className="text-center mb-10">
-              <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Case Intake</p>
-              <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Submit Your Case</h2>
-              <p className="text-base text-slate-300 font-light max-w-md mx-auto">Complete each section and our underwriting engine will analyze your case in under 60 seconds.</p>
-            </div>
 
-            <StepNav current={currentStep} form={form} files={files} visitedSteps={visitedSteps} onNavigate={goToStep} />
+            {/* ═══ GATEWAY: PICK MODE ═══ */}
+            {mode === "pick" && (
+              <div className="anim-in">
+                <div className="text-center mb-10">
+                  <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Get Started</p>
+                  <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">How can we help you?</h2>
+                  <p className="text-base text-slate-300 font-light max-w-md mx-auto">Choose the option that best fits your needs.</p>
+                </div>
+                <div className="grid sm:grid-cols-2 gap-5">
+                  {/* Card 1: Complete the form */}
+                  <button
+                    type="button"
+                    onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
+                    className="group text-left rounded-2xl border border-white/[0.08] bg-white/[0.035] p-8 hover:border-sky-400/30 hover:bg-sky-500/[0.04] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.12)] transition-all duration-300"
+                  >
+                    <div className="w-14 h-14 rounded-2xl border border-sky-400/25 bg-sky-500/[0.08] flex items-center justify-center text-sky-400 mb-5 group-hover:bg-sky-500/[0.14] transition-colors">
+                      <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                    </div>
+                    <h3 className="font-display text-2xl text-white font-semibold mb-2">Complete our form</h3>
+                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Henley AI can underwrite your case and provide an institutional-grade funding decision in under 60 seconds.</p>
+                    <div className="flex items-center gap-2 text-sky-400 font-medium text-[15px]">
+                      Submit a case
+                      <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                    </div>
+                  </button>
+
+                  {/* Card 2: Contact us */}
+                  <button
+                    type="button"
+                    onClick={() => { setMode("contact"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
+                    className="group text-left rounded-2xl border border-white/[0.08] bg-white/[0.035] p-8 hover:border-sky-400/30 hover:bg-sky-500/[0.04] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.12)] transition-all duration-300"
+                  >
+                    <div className="w-14 h-14 rounded-2xl border border-sky-400/25 bg-sky-500/[0.08] flex items-center justify-center text-sky-400 mb-5 group-hover:bg-sky-500/[0.14] transition-colors">
+                      <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                      </svg>
+                    </div>
+                    <h3 className="font-display text-2xl text-white font-semibold mb-2">Contact us</h3>
+                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Have questions or comments? Send us a message and our team will respond as soon as possible.</p>
+                    <div className="flex items-center gap-2 text-sky-400 font-medium text-[15px]">
+                      Write to us
+                      <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                      </svg>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ═══ GATEWAY: CONTACT MODE ═══ */}
+            {mode === "contact" && (
+              <div className="anim-in" ref={stepCardRef}>
+                <div className="text-center mb-8">
+                  <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Contact</p>
+                  <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Write to us</h2>
+                  <p className="text-base text-slate-300 font-light max-w-md mx-auto">We&apos;ll get back to you as soon as possible.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setMode("pick"); setContactSent(false); setContactError(""); }}
+                  className="flex items-center gap-2 mb-5 px-4 py-2 rounded-xl border border-white/[0.1] text-slate-300 text-sm font-medium transition-all duration-200 hover:border-white/[0.2] hover:text-white"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                  Back
+                </button>
+
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8">
+                  {contactSent ? (
+                    <div className="text-center py-8">
+                      <div className="w-14 h-14 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto mb-5">
+                        <svg className="w-7 h-7 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                        </svg>
+                      </div>
+                      <h3 className="font-display text-2xl text-white font-semibold mb-2">Message sent</h3>
+                      <p className="text-[15px] text-slate-400 mb-6">Thanks for reaching out. We&apos;ll be in touch shortly.</p>
+                      <button
+                        type="button"
+                        onClick={() => { setMode("pick"); setContactSent(false); }}
+                        className="px-6 py-2.5 rounded-xl border border-white/[0.1] text-slate-300 text-sm font-medium transition-all duration-200 hover:border-white/[0.2] hover:text-white"
+                      >
+                        Back to home
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-7">
+                      <Field label="Full Name">
+                        <input
+                          type="text"
+                          value={contactForm.name}
+                          disabled={contactSending}
+                          onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
+                          placeholder="Your full name"
+                          className={inputCls}
+                        />
+                      </Field>
+                      <Field label="Email Address">
+                        <input
+                          type="email"
+                          value={contactForm.email}
+                          disabled={contactSending}
+                          onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
+                          placeholder="you@example.com"
+                          className={inputCls}
+                        />
+                      </Field>
+                      <Field label="Message" hint="Tell us what's on your mind.">
+                        <textarea
+                          rows={6}
+                          value={contactForm.message}
+                          disabled={contactSending}
+                          onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
+                          placeholder="Your message..."
+                          className={textareaCls}
+                        />
+                      </Field>
+
+                      {contactError && (
+                        <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{contactError}</div>
+                      )}
+
+                      <div className="flex justify-end pt-2 border-t border-white/[0.06]">
+                        <button
+                          type="button"
+                          onClick={submitContact}
+                          disabled={contactSending}
+                          className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-white font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.2)]"
+                          style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}
+                        >
+                          {contactSending ? (
+                            <>
+                              <svg className="w-5 h-5" style={{ animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50 20" /></svg>
+                              Sending…
+                            </>
+                          ) : (
+                            <>
+                              Send Message
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ═══ GATEWAY: FORM MODE (the original 6-step wizard) ═══ */}
+            {mode === "form" && (
+              <>
+                <div className="text-center mb-10">
+                  <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Case Intake</p>
+                  <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Submit Your Case</h2>
+                  <p className="text-base text-slate-300 font-light max-w-md mx-auto">Complete each section and our underwriting engine will analyze your case in under 60 seconds.</p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMode("pick")}
+                  className="flex items-center gap-2 mb-5 px-4 py-2 rounded-xl border border-white/[0.1] text-slate-300 text-sm font-medium transition-all duration-200 hover:border-white/[0.2] hover:text-white"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                  Back to options
+                </button>
+
+                <StepNav current={currentStep} form={form} files={files} visitedSteps={visitedSteps} onNavigate={goToStep} />
 
             <div ref={stepCardRef} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8 anim-in" key={currentStep}>
               <div className="flex items-center justify-between mb-7">
@@ -789,7 +1071,7 @@ export default function Home() {
                       </>
                     ) : (
                       <>
-                        Run Underwriting Analysis
+                        Submit & Accept Terms
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
                       </>
                     )}
@@ -797,6 +1079,8 @@ export default function Home() {
                 )}
               </div>
             </div>
+              </>
+            )}
           </div>
         </section>
 
