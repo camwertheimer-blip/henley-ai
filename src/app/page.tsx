@@ -843,7 +843,7 @@ export default function Home() {
               <a href="#how-it-works" className="px-8 py-4 rounded-xl text-slate-200 font-medium text-base border border-white/[0.1] bg-white/[0.04] hover:border-white/[0.2] hover:bg-white/[0.06] transition-all duration-200">How It Works</a>
             </div>
             <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 anim-up" style={{ animationDelay: "0.5s" }}>
-              {["Pre-Suit Specialist", "60-Second Underwriting", "§0–§5 Risk Framework", "Institutional Grade"].map((t) => (
+              {["Pre-Suit Specialist", "Rapid Underwriting", "§0–§5 Risk Framework", "Institutional Grade"].map((t) => (
                 <span key={t} className="text-xs tracking-wider uppercase text-slate-400 font-mono">{t}</span>
               ))}
             </div>
@@ -930,7 +930,7 @@ export default function Home() {
                       </svg>
                     </div>
                     <h3 className="font-display text-2xl text-white font-semibold mb-2">Complete our form</h3>
-                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Henley AI can underwrite your case and provide an institutional-grade funding decision in under 60 seconds.</p>
+                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Henley AI can underwrite your case and provide an institutional-grade funding decision.</p>
                     <div className="flex items-center gap-2 text-sky-400 font-medium text-[15px]">
                       Submit a case
                       <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1069,7 +1069,7 @@ export default function Home() {
                 <div className="text-center mb-10">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Case Intake</p>
                   <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Submit Your Case</h2>
-                  <p className="text-base text-slate-300 font-light max-w-md mx-auto">Complete each section and our underwriting engine will analyze your case in under 60 seconds.</p>
+                  <p className="text-base text-slate-300 font-light max-w-md mx-auto">Complete each section and our underwriting engine will analyze your case.</p>
                 </div>
 
                 <button
@@ -1209,7 +1209,7 @@ export default function Home() {
                   </div>
                   <span className="text-white font-semibold text-lg">Henley<span className="text-sky-400 ml-0.5">AI</span></span>
                 </div>
-                <p className="text-[15px] text-slate-400 leading-relaxed max-w-xs">AI-powered underwriting for pre-suit litigation funding. Institutional-grade analysis in under 60 seconds.</p>
+                <p className="text-[15px] text-slate-400 leading-relaxed max-w-xs">AI-powered underwriting for pre-suit litigation funding. Institutional-grade analysis, delivered rapidly.</p>
               </div>
               <div>
                 <h4 className="text-sm font-semibold uppercase tracking-[0.12em] text-slate-300 mb-4">Platform</h4>
