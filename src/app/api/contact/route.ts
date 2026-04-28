@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       try {
         const token = await getAccessToken(svcEmail, privateKey);
         await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contact!A:D:append?valueInputOption=USER_ENTERED`,
+          `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Contact!A:D:append?valueInputOption=RAW`,
           {
             method: "POST",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
