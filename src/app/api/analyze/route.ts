@@ -158,19 +158,38 @@ SUBMITTED BY:
 ${contactName || "Not provided"}${contactEmail ? `\nEmail: ${contactEmail}` : ""}${contactPhone ? `\nPhone: ${contactPhone}` : ""}`;
 
     // Build content blocks
-    const contentBlocks: { type: string; text?: string; source?: { type: string; media_type: string; data: string } }[] = [];
+    type ContentBlock =
+      | { type: "text"; text: string }
+      | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+      | { type: "document"; source: { type: "base64"; media_type: string; data: string } };
+
+    const contentBlocks: ContentBlock[] = [];
 
     if (attachments?.length) {
       userMessage += "\n\n--- ATTACHED DOCUMENTS ---\n";
+
+      // Lazy-import mammoth only when needed (keeps cold-start fast)
+      const mammoth = await import("mammoth");
+
       for (const doc of attachments) {
-        if (doc.type.startsWith("image/")) {
+        if (doc.type === "application/pdf") {
+          // Native PDF support — Claude reads text + visuals
           contentBlocks.push({
-            type: "image",
-            source: { type: "base64", media_type: doc.type, data: doc.content },
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: doc.content },
           });
-          userMessage += `\n[Image attachment: ${doc.name}]`;
-        } else {
-          userMessage += `\nDocument: ${doc.name}\n${doc.content}\n`;
+          userMessage += `\n[PDF attached: ${doc.name}]`;
+        } else if (
+          doc.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ) {
+          // DOCX: extract text server-side
+          try {
+            const buffer = Buffer.from(doc.content, "base64");
+            const result = await mammoth.extractRawText({ buffer });
+            userMessage += `\n--- ${doc.name} ---\n${result.value}\n`;
+          } catch (err) {
+            userMessage += `\n[Failed to read ${doc.name}: ${err instanceof Error ? err.message : "unknown error"}]`;
+          }
         }
       }
     }
