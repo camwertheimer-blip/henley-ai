@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Always log to server console so Vercel captures it even if Sheets fails
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    console.log("CONTACT FORM:", { timestamp, name, email, message });
+    console.log("CONTACT FORM: submission received");
 
     // Best-effort: write a row to a "Contact" tab in the same Google Sheet
     const svcEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
