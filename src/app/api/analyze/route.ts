@@ -15,6 +15,47 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    // ---- File upload validation ----
+    const MAX_TOTAL_BYTES = 25 * 1024 * 1024; // 25 MB total across all files
+    const MAX_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB per file
+    const ALLOWED_MIME = new Set([
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // .docx
+    ]);
+
+    const incomingAttachments = (body as { attachments?: { name: string; content: string; type: string }[] }).attachments ?? [];
+
+    let totalBytes = 0;
+    for (const file of incomingAttachments) {
+      if (!file?.name || !file?.content || !file?.type) {
+        return new Response(
+          JSON.stringify({ error: "Invalid attachment: missing name, content, or type." }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      if (!ALLOWED_MIME.has(file.type)) {
+        return new Response(
+          JSON.stringify({ error: `File type not allowed: ${file.type}. Only PDF and DOCX are accepted.` }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      // Decoded byte size = base64 length * 3/4 (approx, ignoring padding)
+      const decodedBytes = Math.floor((file.content.length * 3) / 4);
+      if (decodedBytes > MAX_FILE_BYTES) {
+        return new Response(
+          JSON.stringify({ error: `File "${file.name}" exceeds 10 MB limit.` }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
+      }
+      totalBytes += decodedBytes;
+    }
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      return new Response(
+        JSON.stringify({ error: "Total upload size exceeds 25 MB limit." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    // ---- End validation ----
     const {
       caseNarrative,
       jurisdiction,
