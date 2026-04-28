@@ -767,7 +767,16 @@ export default function Home() {
                     className="mt-0.5 w-5 h-5 rounded border-2 border-white/[0.15] bg-white/[0.04] cursor-pointer accent-sky-500 disabled:opacity-30 shrink-0"
                   />
                   <span className="text-[14px] text-slate-300 leading-relaxed group-hover:text-slate-200 transition-colors">
-                    I have read and agree to the Terms & Conditions above. I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
+                  I have read and agree to the Terms & Conditions above and the{" "}
+                  <a
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-400 underline hover:text-blue-300"
+                  >
+                    Privacy Policy
+                  </a>
+                  . I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
                   </span>
                 </label>
               </Field>
@@ -1229,11 +1238,7 @@ export default function Home() {
               </div>
             </div>
             <div className="pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-4 text-sm text-slate-500">
-                <span>&copy; {new Date().getFullYear()} Henley AI. All rights reserved.</span>
-                <span className="text-slate-600">·</span>
-                <a href="/privacy" className="hover:text-white transition-colors">Privacy Policy</a>
-              </div>
+              <p className="text-sm text-slate-500">&copy; {new Date().getFullYear()} Henley AI. All rights reserved.</p>
               <p className="text-sm text-white font-mono">Democratizing Legal Access</p>
             </div>
           </div>
