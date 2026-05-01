@@ -349,6 +349,8 @@ export default function Home() {
   const resultsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stepCardRef = useRef<HTMLDivElement>(null);
+  const intakeTurnstileRef = useRef<HTMLDivElement>(null);
+  const contactTurnstileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 20);
@@ -356,13 +358,66 @@ export default function Home() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  // Turnstile callbacks must be on window so the data-callback HTML attribute can find them
+  // Render the intake-form Turnstile widget when Step 6 becomes visible
   useEffect(() => {
-    (window as unknown as Record<string, unknown>).onIntakeTurnstile = (token: string) => setIntakeTurnstileToken(token);
-    (window as unknown as Record<string, unknown>).onContactTurnstile = (token: string) => setContactTurnstileToken(token);
-  }, []);
+    if (mode !== "form" || currentStep !== 6) return;
+    if (!intakeTurnstileRef.current) return;
 
-  const set = useCallback(<K extends keyof FormData>(k: K, v: FormData[K]) => setForm((f) => ({ ...f, [k]: v })), []);
+    let widgetId: string | undefined;
+    const renderWidget = () => {
+      if (!window.turnstile || !intakeTurnstileRef.current) return false;
+      widgetId = window.turnstile.render(intakeTurnstileRef.current, {
+        sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!,
+        callback: (token: string) => setIntakeTurnstileToken(token),
+        "expired-callback": () => setIntakeTurnstileToken(null),
+        theme: "dark",
+      });
+      return true;
+    };
+
+    if (!renderWidget()) {
+      // Script not ready yet; poll briefly until it loads
+      const interval = setInterval(() => {
+        if (renderWidget()) clearInterval(interval);
+      }, 100);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+    };
+  }, [mode, currentStep]);
+
+  // Render the contact-form Turnstile widget when contact mode is active
+  useEffect(() => {
+    if (mode !== "contact" || contactSent) return;
+    if (!contactTurnstileRef.current) return;
+
+    let widgetId: string | undefined;
+    const renderWidget = () => {
+      if (!window.turnstile || !contactTurnstileRef.current) return false;
+      widgetId = window.turnstile.render(contactTurnstileRef.current, {
+        sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!,
+        callback: (token: string) => setContactTurnstileToken(token),
+        "expired-callback": () => setContactTurnstileToken(null),
+        theme: "dark",
+      });
+      return true;
+    };
+
+    if (!renderWidget()) {
+      const interval = setInterval(() => {
+        if (renderWidget()) clearInterval(interval);
+      }, 100);
+      return () => clearInterval(interval);
+    }
+
+    return () => {
+      if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
+    };
+  }, [mode, contactSent]);
+
+  const set = useCallback(<K extends keyof FormData,>(k: K, v: FormData[K]) => setForm((f) => ({ ...f, [k]: v })), []);
 
   const fmtCurrency = (s: string) => {
     const d = s.replace(/\D/g, "");
@@ -808,12 +863,7 @@ export default function Home() {
                   . I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
                   </span>
                 </label> 
-                <div
-                  className="cf-turnstile mt-4"
-                  data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                  data-callback="onIntakeTurnstile"
-                  data-theme="dark"
-                />
+                <div ref={intakeTurnstileRef} className="mt-4" />
               </Field>
             </div>
           </div>
@@ -827,7 +877,7 @@ export default function Home() {
   return (
     <>
     <Script
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
         async
         defer
         strategy="afterInteractive"
@@ -1086,12 +1136,7 @@ export default function Home() {
                         <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{contactError}</div>
                       )}
 
-                      <div
-                        className="cf-turnstile"
-                        data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
-                        data-callback="onContactTurnstile"
-                        data-theme="dark"
-                      />
+                      <div ref={contactTurnstileRef} />
 
                       <div className="flex justify-end pt-2 border-t border-white/[0.06]">
                         <button
