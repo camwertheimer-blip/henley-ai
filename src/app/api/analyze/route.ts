@@ -1,11 +1,35 @@
 import { NextRequest } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
+import { analyzeLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
 
 export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   try {
+
+    // ---- Security: rate limit + Turnstile verification ----
+    const clientIp = getClientIp(request);
+
+    const { success: rateLimitOk } = await analyzeLimiter.limit(clientIp);
+    if (!rateLimitOk) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const body = await request.json();
+    const turnstileToken = body?.turnstileToken;
+    const turnstileOk = await verifyTurnstile(turnstileToken, clientIp);
+    if (!turnstileOk) {
+      return new Response(
+        JSON.stringify({ error: "Bot verification failed. Please refresh and try again." }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    // ---- End security ----
+
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       return new Response(
@@ -14,7 +38,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
     // ---- File upload validation ----
     const MAX_TOTAL_BYTES = 25 * 1024 * 1024; // 25 MB total across all files
     const MAX_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB per file

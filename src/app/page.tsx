@@ -1,6 +1,26 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import Script from "next/script";
+
+// Cloudflare Turnstile global (loaded via Script tag below)
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: string | HTMLElement,
+        options: {
+          sitekey: string;
+          callback: (token: string) => void;
+          "error-callback"?: () => void;
+          "expired-callback"?: () => void;
+          theme?: "light" | "dark" | "auto";
+        }
+      ) => string;
+      reset: (widgetId?: string) => void;
+    };
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
    TYPES & CONSTANTS
@@ -321,6 +341,9 @@ export default function Home() {
   const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
   const [contactSending, setContactSending] = useState(false);
   const [contactSent, setContactSent] = useState(false);
+  // Turnstile tokens — one per form (intake wizard + contact form)
+  const [intakeTurnstileToken, setIntakeTurnstileToken] = useState<string | null>(null);
+  const [contactTurnstileToken, setContactTurnstileToken] = useState<string | null>(null);
   const [contactError, setContactError] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -331,6 +354,12 @@ export default function Home() {
     const fn = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // Turnstile callbacks must be on window so the data-callback HTML attribute can find them
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).onIntakeTurnstile = (token: string) => setIntakeTurnstileToken(token);
+    (window as unknown as Record<string, unknown>).onContactTurnstile = (token: string) => setContactTurnstileToken(token);
   }, []);
 
   const set = useCallback(<K extends keyof FormData>(k: K, v: FormData[K]) => setForm((f) => ({ ...f, [k]: v })), []);
@@ -414,7 +443,7 @@ export default function Home() {
   const submit = async () => {
     setError(""); setAnalysis(null); setRawText(""); setLoading(true);
     try {
-      const payload = { ...form, attachments: files.length > 0 ? files : undefined };
+      const payload = { ...form, attachments: files.length > 0 ? files : undefined, turnstileToken: intakeTurnstileToken };
       const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
       if (!res.body) throw new Error("No response body from analysis engine.");
@@ -443,7 +472,7 @@ export default function Home() {
         await fetch("/api/log-submission", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ formData: form, analysisOutput: fullText }),
+          body: JSON.stringify({ formData: form, analysisOutput: fullText, turnstileToken: intakeTurnstileToken }),
         });
       } catch (logErr) {
         console.error("Logging failed (non-fatal):", logErr);
@@ -465,7 +494,7 @@ export default function Home() {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(contactForm),
+        body: JSON.stringify({ ...contactForm, turnstileToken: contactTurnstileToken }),
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
@@ -546,7 +575,7 @@ export default function Home() {
   const inputCls = "w-full bg-transparent text-base text-slate-200 placeholder:text-slate-500/50 outline-none border-b border-white/[0.08] pb-2 focus:border-sky-400/40 transition-colors disabled:opacity-30";
   const textareaCls = "w-full bg-transparent resize-y text-base leading-relaxed text-slate-200 placeholder:text-slate-500/50 outline-none disabled:opacity-30";
 
-  const canSubmit = isStepComplete(6, form, files) && !loading;
+  const canSubmit = isStepComplete(6, form, files) && !loading && !!intakeTurnstileToken;
 
   /* ═══ STEP CONTENT ═══ */
   const renderStep = () => {
@@ -778,7 +807,13 @@ export default function Home() {
                   </a>
                   . I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
                   </span>
-                </label>
+                </label> 
+                <div
+                  className="cf-turnstile mt-4"
+                  data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                  data-callback="onIntakeTurnstile"
+                  data-theme="dark"
+                />
               </Field>
             </div>
           </div>
@@ -791,6 +826,12 @@ export default function Home() {
 
   return (
     <>
+    <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        async
+        defer
+        strategy="afterInteractive"
+      />
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
       <style jsx global>{`
@@ -1045,11 +1086,18 @@ export default function Home() {
                         <div className="rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{contactError}</div>
                       )}
 
+                      <div
+                        className="cf-turnstile"
+                        data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY}
+                        data-callback="onContactTurnstile"
+                        data-theme="dark"
+                      />
+
                       <div className="flex justify-end pt-2 border-t border-white/[0.06]">
                         <button
                           type="button"
                           onClick={submitContact}
-                          disabled={contactSending}
+                          disabled={contactSending || !contactTurnstileToken}
                           className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-white font-semibold text-base transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.2)]"
                           style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}
                         >

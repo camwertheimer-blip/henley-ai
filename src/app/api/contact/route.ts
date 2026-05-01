@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { contactLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
 
 export const maxDuration = 30;
 
@@ -51,7 +52,27 @@ async function getAccessToken(email: string, privateKey: string): Promise<string
 
 export async function POST(request: NextRequest) {
   try {
+    // ---- Security: rate limit + Turnstile verification ----
+    const clientIp = getClientIp(request);
+
+    const { success: rateLimitOk } = await contactLimiter.limit(clientIp);
+    if (!rateLimitOk) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const body = await request.json();
+    const turnstileToken = body?.turnstileToken;
+    const turnstileOk = await verifyTurnstile(turnstileToken, clientIp);
+    if (!turnstileOk) {
+      return new Response(
+        JSON.stringify({ error: "Bot verification failed. Please refresh and try again." }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    // ---- End security ----
     const name = (body.name || "").toString().trim();
     const email = (body.email || "").toString().trim();
     const message = (body.message || "").toString().trim();

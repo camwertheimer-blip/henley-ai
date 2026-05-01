@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { logSubmissionLimiter, getClientIp, verifyTurnstile } from "@/lib/security";  
 
 export const maxDuration = 60;
 
@@ -72,6 +73,26 @@ async function createGoogleDoc(title: string, content: string, token: string): P
 
 export async function POST(request: NextRequest) {
   try {
+    // ---- Security: rate limit + Turnstile verification ----
+    const clientIp = getClientIp(request);
+
+    const { success: rateLimitOk } = await logSubmissionLimiter.limit(clientIp);
+    if (!rateLimitOk) {
+      return new Response(
+        JSON.stringify({ error: "Too many requests. Please try again later." }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    const body = await request.json();
+    const turnstileToken = body?.turnstileToken;
+    const turnstileOk = await verifyTurnstile(turnstileToken, clientIp);
+    if (!turnstileOk) {
+      return new Response(
+        JSON.stringify({ error: "Bot verification failed. Please refresh and try again." }),
+        { status: 403, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    // ---- End security ----
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY!;
     const sheetId = process.env.GOOGLE_SHEET_ID!;
@@ -80,7 +101,6 @@ export async function POST(request: NextRequest) {
       return new Response(JSON.stringify({ error: "Missing Google credentials" }), { status: 500 });
     }
 
-    const body = await request.json();
     const { formData, analysisOutput } = body;
 
     const token = await getAccessToken(email, privateKey);
