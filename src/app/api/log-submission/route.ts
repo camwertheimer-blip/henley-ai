@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { logSubmissionLimiter, getClientIp, verifyTurnstile } from "@/lib/security";  
+import { logSubmissionLimiter, getClientIp } from "@/lib/security";  
 
 export const maxDuration = 60;
 
@@ -73,7 +73,7 @@ async function createGoogleDoc(title: string, content: string, token: string): P
 
 export async function POST(request: NextRequest) {
   try {
-    // ---- Security: rate limit + Turnstile verification ----
+    // ---- Security: rate limit only (no Turnstile — token already consumed by /api/analyze) ----
     const clientIp = getClientIp(request);
 
     const { success: rateLimitOk } = await logSubmissionLimiter.limit(clientIp);
@@ -83,15 +83,8 @@ export async function POST(request: NextRequest) {
         { status: 429, headers: { "Content-Type": "application/json" } }
       );
     }
+
     const body = await request.json();
-    const turnstileToken = body?.turnstileToken;
-    const turnstileOk = await verifyTurnstile(turnstileToken, clientIp);
-    if (!turnstileOk) {
-      return new Response(
-        JSON.stringify({ error: "Bot verification failed. Please refresh and try again." }),
-        { status: 403, headers: { "Content-Type": "application/json" } }
-      );
-    }
     // ---- End security ----
     const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!;
     const privateKey = process.env.GOOGLE_PRIVATE_KEY!;
