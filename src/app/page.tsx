@@ -702,7 +702,7 @@ export default function Home() {
             <Field label="Funding Request" hint="Total litigation funding amount requested in US dollars.">
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-3xl font-medium font-mono" style={{ color: "rgba(148,163,184,0.35)" }}>$</span>
-                <input type="text" inputMode="numeric" value={form.fundingRequest} disabled={loading} onChange={(e) => set("fundingRequest", fmtCurrency(e.target.value))} onFocus={() => setFocus("fundingRequest")} onBlur={() => setFocus(null)} placeholder="0" className="w-full bg-transparent text-3xl font-medium text-white placeholder:text-slate-600/40 outline-none font-mono disabled:opacity-30" />
+                <input type="text" inputMode="numeric" value={form.fundingRequest} disabled={loading} onChange={(e) => set("fundingRequest", fmtCurrency(e.target.value))} onFocus={() => setFocus("fundingRequest")} onBlur={() => setFocus(null)} placeholder="250,000" className="w-full bg-transparent text-3xl font-medium text-white placeholder:text-slate-600 outline-none font-mono disabled:opacity-30" />
               </div>
             </Field>
             <Field label="Legal Representation" hint="Current status of legal counsel for this matter.">
@@ -921,9 +921,9 @@ export default function Home() {
               {["How It Works", "Platform", "Contact"].map((l) => (
                 <a key={l} href={`#${l.toLowerCase().replace(/\s+/g, "-")}`} className="text-[15px] text-slate-400 hover:text-white transition-colors duration-200">{l}</a>
               ))}
-              <button onClick={scrollToForm} className="text-[15px] font-medium text-white px-5 py-2.5 rounded-lg transition-all duration-200 hover:brightness-110" style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}>Submit a Case</button>
+              <button onClick={scrollToForm} className="text-[15px] font-medium text-sky-400 px-5 py-2.5 rounded-lg border border-sky-400/40 bg-transparent hover:bg-sky-400/10 hover:border-sky-400/60 transition-all duration-200">Submit a Case</button>
             </nav>
-            <button onClick={scrollToForm} className="md:hidden text-sm font-medium text-white px-4 py-2 rounded-lg" style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}>Submit a Case</button>
+            <button onClick={scrollToForm} className="md:hidden text-sm font-medium text-sky-400 px-4 py-2 rounded-lg border border-sky-400/40 bg-transparent">Submit a Case</button>
           </div>
         </header>
 
@@ -934,9 +934,9 @@ export default function Home() {
             <div className="anim-up" style={{ animationDelay: "0.1s" }}>
               <p className="font-mono text-sm tracking-[0.2em] uppercase mb-5" style={{ color: "var(--gold)" }}>AI-Powered Litigation Funding</p>
             </div>
-            <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold text-white leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}>Democratizing Legal Access</h1>
+            <h1 className="font-display text-5xl sm:text-6xl md:text-[4.5rem] font-semibold text-white leading-[1.08] mb-5 anim-up" style={{ animationDelay: "0.2s" }}> Non-recourse capital for commercial litigation</h1>
             <p className="text-lg md:text-xl text-slate-300 font-light leading-relaxed max-w-2xl mx-auto mb-8 anim-up" style={{ animationDelay: "0.3s" }}>
-              Henley AI underwrites pre-suit litigation funding in minutes, not months. Our AI engine evaluates legal merit, collectibility, and expected value to deliver institutional-grade funding decisions.
+              Underwrite litigation funding in days, not months. Our AI engine evaluates legal merit, collectibility, and expected value to deliver institutional-grade funding decisions.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 anim-up" style={{ animationDelay: "0.4s" }}>
               <button onClick={scrollToForm} className="px-8 py-4 rounded-xl text-white font-semibold text-base transition-all duration-200 hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.25)]" style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}>Submit Your Case</button>
@@ -969,7 +969,7 @@ export default function Home() {
                     <span className="font-mono text-sm text-slate-500">{step.num}</span>
                   </div>
                   <h3 className="font-display text-xl text-white font-semibold mb-2">{step.title}</h3>
-                  <p className="text-[15px] text-slate-400 leading-relaxed">{step.desc}</p>
+                  <p className="text-[15px] text-slate-300 leading-relaxed">{step.desc}</p>
                 </div>
               ))}
             </div>
@@ -998,7 +998,7 @@ export default function Home() {
                     <span className="font-mono text-sm font-bold text-sky-400/80 bg-sky-500/[0.1] px-2.5 py-0.5 rounded">{item.s}</span>
                     <h3 className="text-[15px] font-semibold text-slate-200">{item.t}</h3>
                   </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">{item.d}</p>
+                  <p className="text-sm text-slate-300 leading-relaxed">{item.d}</p>
                 </div>
               ))}
             </div>
@@ -1020,17 +1020,18 @@ export default function Home() {
                 <div className="grid sm:grid-cols-2 gap-5">
                   {/* Card 1: Complete the form */}
                   <button
-                    type="button"
-                    onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
-                    className="group text-left rounded-2xl border border-white/[0.08] bg-white/[0.035] p-8 hover:border-sky-400/30 hover:bg-sky-500/[0.04] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.12)] transition-all duration-300"
-                  >
+  type="button"
+  onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
+  className="group relative text-left rounded-2xl border border-sky-400/40 bg-sky-500/[0.06] p-8 shadow-[0_0_24px_rgba(74,158,255,0.08)] hover:border-sky-400/60 hover:bg-sky-500/[0.09] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.18)] transition-all duration-300"
+>
+  <span className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-[0.15em] text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-1 rounded">Recommended</span>
                     <div className="w-14 h-14 rounded-2xl border border-sky-400/25 bg-sky-500/[0.08] flex items-center justify-center text-sky-400 mb-5 group-hover:bg-sky-500/[0.14] transition-colors">
                       <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                       </svg>
                     </div>
                     <h3 className="font-display text-2xl text-white font-semibold mb-2">Complete our form</h3>
-                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Henley AI can underwrite your case and provide an institutional-grade funding decision.</p>
+                    <p className="text-[15px] text-slate-300 leading-relaxed mb-5">Henley AI can underwrite your case and provide an institutional-grade funding decision.</p>
                     <div className="flex items-center gap-2 text-sky-400 font-medium text-[15px]">
                       Submit a case
                       <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1051,7 +1052,7 @@ export default function Home() {
                       </svg>
                     </div>
                     <h3 className="font-display text-2xl text-white font-semibold mb-2">Contact us</h3>
-                    <p className="text-[15px] text-slate-400 leading-relaxed mb-5">Have questions or comments? Send us a message and our team will respond as soon as possible.</p>
+                    <p className="text-[15px] text-slate-300 leading-relaxed mb-5">Have questions or comments? Send us a message and our team will respond as soon as possible.</p>
                     <div className="flex items-center gap-2 text-sky-400 font-medium text-[15px]">
                       Write to us
                       <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1332,7 +1333,7 @@ export default function Home() {
             </div>
             <div className="pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-3">
               <p className="text-sm text-slate-500">&copy; {new Date().getFullYear()} Henley AI. All rights reserved.</p>
-              <p className="text-sm text-white font-mono">Democratizing Legal Access</p>
+              <p className="text-sm text-white font-mono"> Non-recourse capital for commercial litigation</p>
             </div>
           </div>
         </footer>
