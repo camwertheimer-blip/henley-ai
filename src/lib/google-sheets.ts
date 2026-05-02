@@ -57,10 +57,14 @@ export async function getAccessToken(email: string, privateKey: string): Promise
       throw new Error(`Failed to obtain Google access token: ${tokenRes.status}`);
     }
   
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) {
-      throw new Error("Google token response missing access_token");
-    }
+    if (!tokenRes.ok) {
+        const errBody = await tokenRes.text().catch(() => "(no body)");
+        throw new Error(`Failed to obtain Google access token: ${tokenRes.status} - ${errBody}`);
+      }
+      const tokenData = await tokenRes.json();
+      if (!tokenData.access_token) {
+        throw new Error("Google token response missing access_token");
+      }
     return tokenData.access_token;
   }
   
@@ -76,8 +80,9 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     });
   
     if (!createRes.ok) {
-      throw new Error(`Failed to create Google Doc: ${createRes.status}`);
-    }
+        const errBody = await createRes.text().catch(() => "(no body)");
+        throw new Error(`Failed to create Google Doc: ${createRes.status} - ${errBody}`);
+      }
   
     const doc = await createRes.json();
     const docId = doc.documentId;
@@ -151,8 +156,9 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     );
   
     if (!res.ok) {
-      throw new Error(`Failed to append intake row to sheet: ${res.status}`);
-    }
+        const errBody = await res.text().catch(() => "(no body)");
+        throw new Error(`Failed to append intake row to sheet: ${res.status} - ${errBody}`);
+      }
   
     const data = await res.json();
     // The append response includes updates.updatedRange like "Sheet1!A42:L42".
@@ -199,8 +205,9 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     );
   
     if (!res.ok) {
-      throw new Error(`Failed to update row ${rowNumber} with results: ${res.status}`);
-    }
+        const errBody = await res.text().catch(() => "(no body)");
+        throw new Error(`Failed to update row ${rowNumber} with results: ${res.status} - ${errBody}`);
+      }
   }
   
   /**
