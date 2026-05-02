@@ -353,15 +353,10 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 type LoadingStage = "phases" | "reviewing" | "finalizing";
 
 function LoadingUI({ activePhase, stage }: { activePhase: number; stage: LoadingStage }) {
-  // activePhase is 0-indexed and refers to LOADING_PHASES.
-  // When stage = "phases", phases [0..activePhase-1] are complete, activePhase is in progress.
-  // When stage = "reviewing" or "finalizing", all six phases are complete.
-
   const allPhasesComplete = stage !== "phases";
 
   return (
     <div className="anim-in">
-      {/* Do-not-refresh banner — sits at the top of the loading block (B3) */}
       <div className="rounded-xl border border-amber-400/25 bg-amber-500/[0.07] px-5 py-4 mb-8">
         <div className="flex items-start gap-3">
           <svg className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -374,7 +369,6 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
         </div>
       </div>
 
-      {/* Phase list */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8">
         <div className="space-y-4">
           {LOADING_PHASES.map((phase, idx) => {
@@ -389,7 +383,6 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
                   isPending ? "opacity-30" : "opacity-100"
                 }`}
               >
-                {/* Indicator: checkmark when complete, pulsing dot when active, empty circle when pending */}
                 <div className="w-5 h-5 shrink-0 flex items-center justify-center">
                   {isComplete && (
                     <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -419,7 +412,6 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
             );
           })}
 
-          {/* "Reviewing analysis…" extension stage */}
           {stage === "reviewing" && (
             <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] mt-4">
               <span className="relative flex w-3 h-3">
@@ -432,7 +424,6 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
             </div>
           )}
 
-          {/* "Finalizing analysis…" indefinite stage */}
           {stage === "finalizing" && (
             <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] mt-4">
               <span className="relative flex w-3 h-3">
@@ -448,6 +439,75 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
       </div>
     </div>
   );
+}
+
+/* ═══════════════════════════════════════════════════════
+   RANKING BADGE — single labeled badge for the acknowledgment screen
+   ═══════════════════════════════════════════════════════ */
+
+type BadgeTone = "emerald" | "sky" | "amber" | "slate";
+
+function RankingBadge({ label, value, tone }: { label: string; value: string; tone: BadgeTone }) {
+  const toneClasses: Record<BadgeTone, { border: string; bg: string; text: string; dot: string }> = {
+    emerald: {
+      border: "border-emerald-500/30",
+      bg: "bg-emerald-500/[0.06]",
+      text: "text-emerald-300",
+      dot: "bg-emerald-400",
+    },
+    sky: {
+      border: "border-sky-400/30",
+      bg: "bg-sky-500/[0.06]",
+      text: "text-sky-300",
+      dot: "bg-sky-400",
+    },
+    amber: {
+      border: "border-amber-400/30",
+      bg: "bg-amber-500/[0.06]",
+      text: "text-amber-300",
+      dot: "bg-amber-400",
+    },
+    slate: {
+      border: "border-white/[0.1]",
+      bg: "bg-white/[0.025]",
+      text: "text-slate-300",
+      dot: "bg-slate-400",
+    },
+  };
+
+  const t = toneClasses[tone];
+
+  return (
+    <div className={`rounded-xl border ${t.border} ${t.bg} px-5 py-4`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 mb-2">{label}</p>
+      <div className="flex items-center gap-2.5">
+        <div className={`w-2 h-2 rounded-full ${t.dot} shrink-0`} />
+        <span className={`text-[15px] font-medium leading-tight ${t.text}`}>{value}</span>
+      </div>
+    </div>
+  );
+}
+
+// Map a Fundability value to a badge tone.
+function fundabilityTone(v: PublicRankings["fundability"]): BadgeTone {
+  if (v === "Likely") return "emerald";
+  if (v === "Possible") return "sky";
+  if (v === "Unlikely") return "slate";
+  return "amber"; // "More information required — the team will be in touch"
+}
+
+// Map a Completeness value to a badge tone.
+function completenessTone(v: PublicRankings["completeness"]): BadgeTone {
+  if (v === "High") return "emerald";
+  if (v === "Medium") return "sky";
+  return "amber"; // "Low"
+}
+
+// Map a Next Step value to a badge tone.
+function nextStepTone(v: PublicRankings["nextStep"]): BadgeTone {
+  if (v === "Under review") return "sky";
+  if (v === "More information required") return "amber";
+  return "slate"; // "Not a fit"
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -513,20 +573,16 @@ export default function Home() {
       setActivePhase((prev) => {
         const next = prev + 1;
         if (next < LOADING_PHASES.length) {
-          // Advance to the next phase
           timeoutId = setTimeout(tick, PHASE_DURATION_MS);
           return next;
         } else {
-          // All six phases done — move into the "reviewing" stage
           setLoadingStage("reviewing");
-          // After REVIEWING_HOLD_MS, transition to "finalizing" (indefinite)
           timeoutId = setTimeout(() => setLoadingStage("finalizing"), REVIEWING_HOLD_MS);
-          return prev; // don't increment past the last phase
+          return prev;
         }
       });
     };
 
-    // Kick off the first transition after PHASE_DURATION_MS
     timeoutId = setTimeout(tick, PHASE_DURATION_MS);
 
     return () => {
@@ -656,7 +712,6 @@ export default function Home() {
       }
 
       const data = await res.json();
-      // Expected shape: { public: { completeness, fundability, nextStep } }
       if (!data?.public?.completeness || !data?.public?.fundability || !data?.public?.nextStep) {
         throw new Error("Unexpected response shape from analysis service.");
       }
@@ -968,7 +1023,6 @@ export default function Home() {
               <input type="tel" value={form.contactPhone} disabled={loading} onChange={(e) => set("contactPhone", e.target.value)} onFocus={() => setFocus("contactPhone")} onBlur={() => setFocus(null)} placeholder="+1 (555) 000-0000" className={inputCls} />
             </Field>
 
-            {/* ═══ TERMS & CONDITIONS ═══ */}
             <div className="pt-4 border-t border-white/[0.06]">
               <Field label="Terms & Conditions" hint="Please review the terms below before submitting your case.">
                 <div className="mt-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 max-h-64 overflow-y-auto">
@@ -1008,7 +1062,9 @@ export default function Home() {
 
   // Whether the wizard should be hidden — once loading begins, the wizard
   // unmounts and the loading UI takes its place (per design decision L1).
-  const showWizard = mode === "form" && !loading;
+  // After the API returns and publicRankings is set, the acknowledgment screen
+  // takes its place instead.
+  const showWizard = mode === "form" && !loading && !publicRankings;
 
   return (
     <>
@@ -1142,7 +1198,7 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ INTAKE FORM — WIZARD + GATEWAY + LOADING ═══════ */}
+        {/* ═══════ INTAKE FORM — WIZARD + GATEWAY + LOADING + ACKNOWLEDGMENT ═══════ */}
         <section id="submit" className="py-16 px-6" ref={formRef}>
           <div className="max-w-[720px] mx-auto">
 
@@ -1157,8 +1213,70 @@ export default function Home() {
               </div>
             )}
 
+            {/* ═══ ACKNOWLEDGMENT SCREEN — shown after the API returns publicRankings ═══ */}
+            {!loading && publicRankings && (
+              <div className="anim-in" ref={stepCardRef}>
+                <div className="text-center mb-10">
+                  <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Submission Received</p>
+                  <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Thank you for your submission</h2>
+                </div>
+
+                {/* Confirmation banner */}
+                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-5 py-4 mb-8">
+                  <div className="flex items-start gap-3">
+                    <svg className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                    <div>
+                      <p className="text-[15px] font-semibold text-emerald-200 leading-tight mb-1">Submission received</p>
+                      <p className="text-sm text-emerald-200/80 leading-relaxed">A confirmation has been sent to the email on file. Our team will be in touch within 1–2 business days.</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* The three rankings */}
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8">
+                  <div className="grid sm:grid-cols-3 gap-4 mb-6">
+                    <RankingBadge
+                      label="Completeness"
+                      value={publicRankings.completeness}
+                      tone={completenessTone(publicRankings.completeness)}
+                    />
+                    <RankingBadge
+                      label="Fundability"
+                      value={publicRankings.fundability}
+                      tone={fundabilityTone(publicRankings.fundability)}
+                    />
+                    <RankingBadge
+                      label="Next Step"
+                      value={publicRankings.nextStep}
+                      tone={nextStepTone(publicRankings.nextStep)}
+                    />
+                  </div>
+
+                  <div className="pt-5 border-t border-white/[0.06]">
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 mb-1">Estimated Response Time</p>
+                        <p className="text-[15px] text-slate-200 font-medium">1–2 business days</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact line */}
+                <p className="text-center text-sm text-slate-400 mt-8">
+                  If you have additional information, please contact{" "}
+                  <a href="mailto:info@henleyai.com" className="text-sky-400 hover:text-sky-300 transition-colors">
+                    info@henleyai.com
+                  </a>
+                  .
+                </p>
+              </div>
+            )}
+
             {/* ═══ GATEWAY: PICK MODE ═══ */}
-            {!loading && mode === "pick" && (
+            {!loading && !publicRankings && mode === "pick" && (
               <div className="anim-in">
                 <div className="text-center mb-10">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Get Started</p>
@@ -1166,7 +1284,6 @@ export default function Home() {
                   <p className="text-base text-slate-300 font-light max-w-md mx-auto">Choose the option that best fits your needs.</p>
                 </div>
                 <div className="grid sm:grid-cols-2 gap-5">
-                  {/* Card 1: Complete the form */}
                   <button
                     type="button"
                     onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
@@ -1188,7 +1305,6 @@ export default function Home() {
                     </div>
                   </button>
 
-                  {/* Card 2: Contact us */}
                   <button
                     type="button"
                     onClick={() => { setMode("contact"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
@@ -1213,7 +1329,7 @@ export default function Home() {
             )}
 
             {/* ═══ GATEWAY: CONTACT MODE ═══ */}
-            {!loading && mode === "contact" && (
+            {!loading && !publicRankings && mode === "contact" && (
               <div className="anim-in" ref={stepCardRef}>
                 <div className="text-center mb-8">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Contact</p>
@@ -1439,9 +1555,6 @@ export default function Home() {
             </div>
           </section>
         )}
-
-        {/* publicRankings is set by submit() but isn't rendered yet — commit 4 adds the acknowledgment screen. Suppressing the unused-var lint with a no-op render. */}
-        {publicRankings && null}
 
         {/* ═══════ FOOTER ═══════ */}
         <footer id="contact" className="border-t border-white/[0.06] py-14 px-6">
