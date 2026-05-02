@@ -224,7 +224,8 @@ export async function POST(request: NextRequest) {
     }
     const googleEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
     const googlePrivateKey = process.env.GOOGLE_PRIVATE_KEY;
-    if (!googleEmail || !googlePrivateKey || !sheetId) {
+    const driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
+    if (!googleEmail || !googlePrivateKey || !sheetId || !driveFolderId) {
       return new Response(
         JSON.stringify({ error: "Google credentials not configured." }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -470,7 +471,8 @@ Name: ${escape(contactName) || "Not provided"}${contactEmail ? `\nEmail: ${escap
     const intakeUrl = await createGoogleDoc(
       `Henley_Intake_${slug}_${dateSlug}`,
       intakeContent,
-      googleToken
+      googleToken,
+      driveFolderId
     );
 
     rowNumber = await appendIntakeRow(googleToken, sheetId, {
@@ -548,7 +550,8 @@ Name: ${escape(contactName) || "Not provided"}${contactEmail ? `\nEmail: ${escap
     const outputUrl = await createGoogleDoc(
       `Henley_Output_${slug}_${dateSlug}`,
       outputContent,
-      googleToken
+      googleToken,
+      driveFolderId
     );
 
     await updateRowWithResults(googleToken, sheetId, rowNumber, outputUrl, parsed.public);

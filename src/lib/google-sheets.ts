@@ -2,9 +2,9 @@
  * Shared Google Sheets and Google Docs helpers.
  * Used by /api/analyze to atomically log intake + analysis output.
  *
- * The original implementations lived in /api/log-submission/route.ts.
- * They were moved here so /api/analyze can call them directly,
- * eliminating the client-side fire-and-forget logging step.
+ * Docs are created inside a specified Drive folder so the service account
+ * can manage them. The folder must be shared with the service account
+ * (Editor role) and its ID provided via GOOGLE_DRIVE_FOLDER_ID.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,42 +54,59 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     });
   
     if (!tokenRes.ok) {
-      throw new Error(`Failed to obtain Google access token: ${tokenRes.status}`);
+      const errBody = await tokenRes.text().catch(() => "(no body)");
+      throw new Error(`Failed to obtain Google access token: ${tokenRes.status} - ${errBody}`);
     }
-  
-    if (!tokenRes.ok) {
-        const errBody = await tokenRes.text().catch(() => "(no body)");
-        throw new Error(`Failed to obtain Google access token: ${tokenRes.status} - ${errBody}`);
-      }
-      const tokenData = await tokenRes.json();
-      if (!tokenData.access_token) {
-        throw new Error("Google token response missing access_token");
-      }
+    const tokenData = await tokenRes.json();
+    if (!tokenData.access_token) {
+      throw new Error("Google token response missing access_token");
+    }
     return tokenData.access_token;
   }
   
   // ─────────────────────────────────────────────────────────────────────────────
-  // Google Docs — create a doc and insert content
+  // Google Docs — create a doc inside a given Drive folder, then insert content
   // ─────────────────────────────────────────────────────────────────────────────
+  //
+  // We use the Drive API (not the Docs API) to create the file because Drive
+  // supports a `parents` parameter that places the new file in a specific
+  // folder. The Docs API's `documents.create` endpoint creates files in the
+  // service account's own Drive root, which is inaccessible to humans and
+  // returns 403 on bare service accounts.
+  //
+  // Once the empty Doc exists, we use the Docs API's batchUpdate to insert
+  // the content text. This call works fine on an existing Doc the service
+  // account has access to.
   
-  export async function createGoogleDoc(title: string, content: string, token: string): Promise<string> {
-    const createRes = await fetch("https://docs.googleapis.com/v1/documents", {
+  export async function createGoogleDoc(
+    title: string,
+    content: string,
+    token: string,
+    folderId: string,
+  ): Promise<string> {
+    // Step 1: Create the Doc inside the target folder via the Drive API.
+    const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({
+        name: title,
+        mimeType: "application/vnd.google-apps.document",
+        parents: [folderId],
+      }),
     });
   
     if (!createRes.ok) {
-        const errBody = await createRes.text().catch(() => "(no body)");
-        throw new Error(`Failed to create Google Doc: ${createRes.status} - ${errBody}`);
-      }
-  
-    const doc = await createRes.json();
-    const docId = doc.documentId;
-    if (!docId) {
-      throw new Error("Google Doc creation response missing documentId");
+      const errBody = await createRes.text().catch(() => "(no body)");
+      throw new Error(`Failed to create Google Doc: ${createRes.status} - ${errBody}`);
     }
   
+    const created = await createRes.json();
+    const docId = created.id;
+    if (!docId) {
+      throw new Error("Drive API create response missing file id");
+    }
+  
+    // Step 2: Insert content into the new Doc via the Docs API batchUpdate.
     const updateRes = await fetch(`https://docs.googleapis.com/v1/documents/${docId}:batchUpdate`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
@@ -101,7 +118,8 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     if (!updateRes.ok) {
       // Doc was created but content insert failed. Return the URL anyway —
       // an empty doc is recoverable; failing the whole submission is not.
-      console.error(`Google Doc content insert failed for ${docId}: ${updateRes.status}`);
+      const errBody = await updateRes.text().catch(() => "(no body)");
+      console.error(`Google Doc content insert failed for ${docId}: ${updateRes.status} - ${errBody}`);
     }
   
     return `https://docs.google.com/document/d/${docId}/edit`;
@@ -114,10 +132,6 @@ export async function getAccessToken(email: string, privateKey: string): Promise
   /**
    * Append a new row to the sheet with intake data + status="analyzing".
    * Returns the row number that was written, so we can update it later.
-   *
-   * Columns: A=timestamp, B=name, C=email, D=phone, E=intakeUrl, F=outputUrl(blank),
-   *          G=status, H=completeness(blank), I=fundability(blank), J=nextStep(blank),
-   *          K=rawOutput(blank), L=submissionId
    */
   export async function appendIntakeRow(
     token: string,
@@ -156,13 +170,11 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     );
   
     if (!res.ok) {
-        const errBody = await res.text().catch(() => "(no body)");
-        throw new Error(`Failed to append intake row to sheet: ${res.status} - ${errBody}`);
-      }
+      const errBody = await res.text().catch(() => "(no body)");
+      throw new Error(`Failed to append intake row to sheet: ${res.status} - ${errBody}`);
+    }
   
     const data = await res.json();
-    // The append response includes updates.updatedRange like "Sheet1!A42:L42".
-    // Extract the row number (42) so we can update it later.
     const updatedRange: string | undefined = data?.updates?.updatedRange;
     if (!updatedRange) {
       throw new Error("Sheet append response missing updatedRange");
@@ -185,7 +197,6 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     outputUrl: string,
     rankings: { completeness: string; fundability: string; nextStep: string }
   ): Promise<void> {
-    // Update F:J in one batch (six columns including the gap from F to J).
     const range = `Sheet1!F${rowNumber}:J${rowNumber}`;
     const res = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?valueInputOption=RAW`,
@@ -194,27 +205,24 @@ export async function getAccessToken(email: string, privateKey: string): Promise
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({
           values: [[
-            outputUrl,                // F
-            "complete",               // G
-            rankings.completeness,    // H
-            rankings.fundability,     // I
-            rankings.nextStep,        // J
+            outputUrl,
+            "complete",
+            rankings.completeness,
+            rankings.fundability,
+            rankings.nextStep,
           ]],
         }),
       }
     );
   
     if (!res.ok) {
-        const errBody = await res.text().catch(() => "(no body)");
-        throw new Error(`Failed to update row ${rowNumber} with results: ${res.status} - ${errBody}`);
-      }
+      const errBody = await res.text().catch(() => "(no body)");
+      throw new Error(`Failed to update row ${rowNumber} with results: ${res.status} - ${errBody}`);
+    }
   }
   
   /**
    * Update an existing row with raw output + status="parse_failed".
-   * Used when the model returned text we couldn't parse as valid JSON,
-   * even after a retry. Form data is preserved; raw output is saved for
-   * manual review.
    */
   export async function updateRowWithParseFailure(
     token: string,
@@ -222,9 +230,6 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     rowNumber: number,
     rawOutput: string
   ): Promise<void> {
-    // Update G (status) and K (raw output).
-    // Sheets doesn't let us update non-contiguous columns in one call,
-    // so we make two updates.
     const updateStatus = fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!G${rowNumber}?valueInputOption=RAW`,
       {
@@ -234,7 +239,6 @@ export async function getAccessToken(email: string, privateKey: string): Promise
       }
     );
   
-    // Truncate raw output to stay under Sheets' 50,000 char per-cell limit.
     const truncated = rawOutput.length > 49000
       ? rawOutput.slice(0, 49000) + "\n\n[TRUNCATED — full output exceeded sheet cell limit]"
       : rawOutput;
@@ -259,9 +263,7 @@ export async function getAccessToken(email: string, privateKey: string): Promise
   }
   
   /**
-   * Mark a row as analysis_failed. Used when the Anthropic API call itself
-   * failed (network error, rate limit, etc.) and we never got any output.
-   * Best-effort — if the sheet itself is unreachable, we just log and move on.
+   * Mark a row as analysis_failed. Best-effort.
    */
   export async function markRowAnalysisFailed(
     token: string,
@@ -279,6 +281,5 @@ export async function getAccessToken(email: string, privateKey: string): Promise
       );
     } catch (err) {
       console.error(`Failed to mark row ${rowNumber} as analysis_failed:`, err);
-      // Don't rethrow — this is best-effort cleanup.
     }
   }
