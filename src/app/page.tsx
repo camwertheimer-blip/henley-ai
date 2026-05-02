@@ -53,7 +53,6 @@ interface FileAttachment {
   content: string;
 }
 
-// New: the four-ranking object returned by /api/analyze
 interface PublicRankings {
   completeness: "Low" | "Medium" | "High";
   fundability:
@@ -62,14 +61,6 @@ interface PublicRankings {
     | "Unlikely"
     | "More information required — the team will be in touch";
   nextStep: "More information required" | "Under review" | "Not a fit";
-}
-
-// Legacy interface — used only by the old ResultCard component, which is no
-// longer reached in the new flow but is removed in commit 5.
-interface AnalysisSection {
-  title: string;
-  content: string;
-  verdict?: "pass" | "fail" | "caution";
 }
 
 const EMPTY_FORM: FormData = {
@@ -143,9 +134,8 @@ const LOADING_PHASES = [
   "Finalizing recommendation",
 ];
 
-const PHASE_DURATION_MS = 5000;     // 5 seconds per phase
-const REVIEWING_HOLD_MS = 15000;    // 15 seconds in "Reviewing analysis…" state
-// "Finalizing analysis…" has no timer — it stays until the API returns.
+const PHASE_DURATION_MS = 5000;
+const REVIEWING_HOLD_MS = 15000;
 
 /* ═══════════════════════════════════════════════════════
    TERMS & CONDITIONS
@@ -313,26 +303,6 @@ function StepNav({ current, form, files, visitedSteps, onNavigate }: {
 }
 
 /* ═══════════════════════════════════════════════════════
-   RESULT CARD (legacy — unreached in new flow, removed in commit 5)
-   ═══════════════════════════════════════════════════════ */
-
-function ResultCard({ section, index }: { section: AnalysisSection; index: number }) {
-  const v = section.verdict;
-  const bdr = v === "pass" ? "border-emerald-500/30" : v === "fail" ? "border-red-500/30" : v === "caution" ? "border-amber-500/30" : "border-white/[0.08]";
-  const bg = v === "pass" ? "bg-emerald-500/[0.05]" : v === "fail" ? "bg-red-500/[0.05]" : v === "caution" ? "bg-amber-500/[0.05]" : "bg-white/[0.03]";
-  const badge = v === "pass" ? { c: "bg-emerald-500/20 text-emerald-400", l: "PASS" } : v === "fail" ? { c: "bg-red-500/20 text-red-400", l: "DECLINE" } : v === "caution" ? { c: "bg-amber-500/20 text-amber-400", l: "CAUTION" } : null;
-  return (
-    <div className={`rounded-2xl border ${bdr} ${bg} p-6 anim-up`} style={{ animationDelay: `${index * 80}ms` }}>
-      <div className="flex items-start justify-between gap-4 mb-3">
-        <h3 className="text-lg font-semibold text-slate-100 font-display">{section.title}</h3>
-        {badge && <span className={`shrink-0 text-[11px] font-bold px-3 py-1 rounded-full tracking-widest font-mono ${badge.c}`}>{badge.l}</span>}
-      </div>
-      <div className="text-[15px] text-slate-300 leading-relaxed whitespace-pre-wrap">{section.content}</div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════
    FIELD WRAPPER
    ═══════════════════════════════════════════════════════ */
 
@@ -449,34 +419,12 @@ type BadgeTone = "emerald" | "sky" | "amber" | "slate";
 
 function RankingBadge({ label, value, tone }: { label: string; value: string; tone: BadgeTone }) {
   const toneClasses: Record<BadgeTone, { border: string; bg: string; text: string; dot: string }> = {
-    emerald: {
-      border: "border-emerald-500/30",
-      bg: "bg-emerald-500/[0.06]",
-      text: "text-emerald-300",
-      dot: "bg-emerald-400",
-    },
-    sky: {
-      border: "border-sky-400/30",
-      bg: "bg-sky-500/[0.06]",
-      text: "text-sky-300",
-      dot: "bg-sky-400",
-    },
-    amber: {
-      border: "border-amber-400/30",
-      bg: "bg-amber-500/[0.06]",
-      text: "text-amber-300",
-      dot: "bg-amber-400",
-    },
-    slate: {
-      border: "border-white/[0.1]",
-      bg: "bg-white/[0.025]",
-      text: "text-slate-300",
-      dot: "bg-slate-400",
-    },
+    emerald: { border: "border-emerald-500/30", bg: "bg-emerald-500/[0.06]", text: "text-emerald-300", dot: "bg-emerald-400" },
+    sky:     { border: "border-sky-400/30",     bg: "bg-sky-500/[0.06]",     text: "text-sky-300",     dot: "bg-sky-400" },
+    amber:   { border: "border-amber-400/30",   bg: "bg-amber-500/[0.06]",   text: "text-amber-300",   dot: "bg-amber-400" },
+    slate:   { border: "border-white/[0.1]",    bg: "bg-white/[0.025]",      text: "text-slate-300",   dot: "bg-slate-400" },
   };
-
   const t = toneClasses[tone];
-
   return (
     <div className={`rounded-xl border ${t.border} ${t.bg} px-5 py-4`}>
       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400 mb-2">{label}</p>
@@ -488,26 +436,23 @@ function RankingBadge({ label, value, tone }: { label: string; value: string; to
   );
 }
 
-// Map a Fundability value to a badge tone.
 function fundabilityTone(v: PublicRankings["fundability"]): BadgeTone {
   if (v === "Likely") return "emerald";
   if (v === "Possible") return "sky";
   if (v === "Unlikely") return "slate";
-  return "amber"; // "More information required — the team will be in touch"
+  return "amber";
 }
 
-// Map a Completeness value to a badge tone.
 function completenessTone(v: PublicRankings["completeness"]): BadgeTone {
   if (v === "High") return "emerald";
   if (v === "Medium") return "sky";
-  return "amber"; // "Low"
+  return "amber";
 }
 
-// Map a Next Step value to a badge tone.
 function nextStepTone(v: PublicRankings["nextStep"]): BadgeTone {
   if (v === "Under review") return "sky";
   if (v === "More information required") return "amber";
-  return "slate"; // "Not a fit"
+  return "slate";
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -525,23 +470,12 @@ export default function Home() {
   const [scrolled, setScrolled] = useState(false);
   const [dragActive, setDragActive] = useState(false);
 
-  // New state for the analytical-theater loading UI
   const [activePhase, setActivePhase] = useState(0);
   const [loadingStage, setLoadingStage] = useState<LoadingStage>("phases");
-
-  // New state: the four-ranking object returned from /api/analyze
   const [publicRankings, setPublicRankings] = useState<PublicRankings | null>(null);
 
-  // Legacy state — unreached in the new flow, retained for the streaming preview
-  // and old results section that get removed in commit 5.
-  const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
-  const [rawText, setRawText] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  /* Gateway: "pick" | "form" | "contact" — controls the submission area UI */
   const [mode, setMode] = useState<"pick" | "form" | "contact">("pick");
 
-  /* Contact-form mode state (separate from the 6-step intake) */
   const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
   const [contactSending, setContactSending] = useState(false);
   const [contactSent, setContactSent] = useState(false);
@@ -549,7 +483,6 @@ export default function Home() {
   const [contactTurnstileToken, setContactTurnstileToken] = useState<string | null>(null);
   const [contactError, setContactError] = useState("");
   const formRef = useRef<HTMLDivElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stepCardRef = useRef<HTMLDivElement>(null);
   const intakeTurnstileRef = useRef<HTMLDivElement>(null);
@@ -561,14 +494,9 @@ export default function Home() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
-  // Phase rotation timer — advances through the six phases, then to "reviewing,"
-  // then to "finalizing." Stops advancing once "finalizing" is reached;
-  // "finalizing" stays until the API returns and `loading` flips to false.
   useEffect(() => {
     if (!loading) return;
-
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
     const tick = () => {
       setActivePhase((prev) => {
         const next = prev + 1;
@@ -582,19 +510,13 @@ export default function Home() {
         }
       });
     };
-
     timeoutId = setTimeout(tick, PHASE_DURATION_MS);
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId);
-    };
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, [loading]);
 
-  // Render the intake-form Turnstile widget when Step 6 becomes visible
   useEffect(() => {
     if (mode !== "form" || currentStep !== 6) return;
     if (!intakeTurnstileRef.current) return;
-
     let widgetId: string | undefined;
     const renderWidget = () => {
       if (!window.turnstile || !intakeTurnstileRef.current) return false;
@@ -606,24 +528,16 @@ export default function Home() {
       });
       return true;
     };
-
     if (!renderWidget()) {
-      const interval = setInterval(() => {
-        if (renderWidget()) clearInterval(interval);
-      }, 100);
+      const interval = setInterval(() => { if (renderWidget()) clearInterval(interval); }, 100);
       return () => clearInterval(interval);
     }
-
-    return () => {
-      if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
-    };
+    return () => { if (widgetId && window.turnstile) window.turnstile.reset(widgetId); };
   }, [mode, currentStep]);
 
-  // Render the contact-form Turnstile widget when contact mode is active
   useEffect(() => {
     if (mode !== "contact" || contactSent) return;
     if (!contactTurnstileRef.current) return;
-
     let widgetId: string | undefined;
     const renderWidget = () => {
       if (!window.turnstile || !contactTurnstileRef.current) return false;
@@ -635,17 +549,11 @@ export default function Home() {
       });
       return true;
     };
-
     if (!renderWidget()) {
-      const interval = setInterval(() => {
-        if (renderWidget()) clearInterval(interval);
-      }, 100);
+      const interval = setInterval(() => { if (renderWidget()) clearInterval(interval); }, 100);
       return () => clearInterval(interval);
     }
-
-    return () => {
-      if (widgetId && window.turnstile) window.turnstile.reset(widgetId);
-    };
+    return () => { if (widgetId && window.turnstile) window.turnstile.reset(widgetId); };
   }, [mode, contactSent]);
 
   const set = useCallback(<K extends keyof FormData,>(k: K, v: FormData[K]) => setForm((f) => ({ ...f, [k]: v })), []);
@@ -666,7 +574,6 @@ export default function Home() {
   const nextStep = () => { if (currentStep < 6) goToStep(currentStep + 1); };
   const prevStep = () => { if (currentStep > 1) goToStep(currentStep - 1); };
 
-  /* ── File handling ── */
   const processFiles = async (fileList: FileList) => {
     const newFiles: FileAttachment[] = [];
     for (const file of Array.from(fileList)) {
@@ -685,37 +592,27 @@ export default function Home() {
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragActive(false); if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files); };
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
-  /* ═══ Submit — new architecture: single JSON response, no streaming ═══ */
   const submit = async () => {
     setError("");
     setPublicRankings(null);
     setActivePhase(0);
     setLoadingStage("phases");
     setLoading(true);
-
     try {
-      const payload = {
-        ...form,
-        attachments: files.length > 0 ? files : undefined,
-        turnstileToken: intakeTurnstileToken,
-      };
-
+      const payload = { ...form, attachments: files.length > 0 ? files : undefined, turnstileToken: intakeTurnstileToken };
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || `Error ${res.status}`);
       }
-
       const data = await res.json();
       if (!data?.public?.completeness || !data?.public?.fundability || !data?.public?.nextStep) {
         throw new Error("Unexpected response shape from analysis service.");
       }
-
       setPublicRankings(data.public);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Unexpected error. Please try again.");
@@ -724,7 +621,6 @@ export default function Home() {
     }
   };
 
-  /* Contact-form submission (separate from the 6-step intake) */
   const submitContact = async () => {
     setContactError("");
     if (!contactForm.name.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
@@ -751,78 +647,13 @@ export default function Home() {
     }
   };
 
-  /* ═══ Legacy export functions — unreached in new flow, removed in commit 5 ═══ */
-  const copyText = async () => {
-    if (!rawText) return;
-    await navigator.clipboard.writeText(rawText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const exportPDF = () => {
-    if (!rawText) return;
-    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>Henley AI — Underwriting Report</title>
-<style>
-  body { font-family: Georgia, serif; max-width: 800px; margin: 40px auto; padding: 0 40px; color: #1a1a1a; line-height: 1.7; }
-  h1 { font-size: 22px; border-bottom: 2px solid #1B2A4A; padding-bottom: 10px; color: #1B2A4A; }
-  .meta { font-size: 12px; color: #666; margin-bottom: 30px; font-family: monospace; }
-  pre { white-space: pre-wrap; font-family: Georgia, serif; font-size: 14px; line-height: 1.7; }
-  @media print { body { margin: 20px; padding: 0 20px; } }
-</style>
-</head>
-<body>
-<h1>Henley AI — Underwriting Report</h1>
-<div class="meta">${date} · Henley AI v1.0 · Confidential</div>
-<pre>${rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-</body>
-</html>`;
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(html);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 500);
-  };
-
-  const exportWord = () => {
-    if (!rawText) return;
-    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"/><title>Henley AI Underwriting Report</title>
-<style>
-  body { font-family: Calibri, sans-serif; font-size: 11pt; line-height: 1.6; margin: 1in; color: #1a1a1a; }
-  h1 { font-size: 16pt; color: #1B2A4A; border-bottom: 1pt solid #B8962E; padding-bottom: 6pt; }
-  .meta { font-size: 9pt; color: #666; margin-bottom: 24pt; }
-  pre { font-family: Calibri, sans-serif; font-size: 11pt; white-space: pre-wrap; }
-</style></head>
-<body>
-<h1>Henley AI — Underwriting Report</h1>
-<div class="meta">${date} · Henley AI v1.0 · Confidential — Proprietary Underwriting Methodology</div>
-<pre>${rawText.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>
-</body></html>`;
-    const blob = new Blob(["\ufeff", html], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Henley_AI_Report_${new Date().toISOString().slice(0, 10)}.doc`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const inputCls = "w-full bg-transparent text-base text-slate-200 placeholder:text-slate-500/50 outline-none border-b border-white/[0.08] pb-2 focus:border-sky-400/40 transition-colors disabled:opacity-30";
   const textareaCls = "w-full bg-transparent resize-y text-base leading-relaxed text-slate-200 placeholder:text-slate-500/50 outline-none disabled:opacity-30";
 
   const canSubmit = isStepComplete(6, form, files) && !loading && !!intakeTurnstileToken;
 
-  /* ═══ STEP CONTENT ═══ */
   const renderStep = () => {
     switch (currentStep) {
-
       case 1:
         return (
           <div className="space-y-7">
@@ -870,7 +701,6 @@ export default function Home() {
             </Field>
           </div>
         );
-
       case 2:
         return (
           <div className="space-y-7">
@@ -882,7 +712,6 @@ export default function Home() {
             </Field>
           </div>
         );
-
       case 3:
         return (
           <div className="space-y-7">
@@ -927,7 +756,6 @@ export default function Home() {
             </Field>
           </div>
         );
-
       case 4:
         return (
           <div className="space-y-7">
@@ -962,7 +790,6 @@ export default function Home() {
             </Field>
           </div>
         );
-
       case 5:
         return (
           <div className="space-y-5">
@@ -1006,7 +833,6 @@ export default function Home() {
             )}
           </div>
         );
-
       case 6:
         return (
           <div className="space-y-7">
@@ -1037,16 +863,7 @@ export default function Home() {
                     className="mt-0.5 w-5 h-5 rounded border-2 border-white/[0.15] bg-white/[0.04] cursor-pointer accent-sky-500 disabled:opacity-30 shrink-0"
                   />
                   <span className="text-[14px] text-slate-300 leading-relaxed group-hover:text-slate-200 transition-colors">
-                  I have read and agree to the Terms & Conditions above and the{" "}
-                  <a
-                    href="/privacy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-400 underline hover:text-blue-300"
-                  >
-                    Privacy Policy
-                  </a>
-                  . I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
+                  I have read and agree to the Terms & Conditions above and the{" "}<a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300">Privacy Policy</a>. I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
                   </span>
                 </label>
                 <div ref={intakeTurnstileRef} className="mt-4" />
@@ -1054,16 +871,11 @@ export default function Home() {
             </div>
           </div>
         );
-
       default:
         return null;
     }
   };
 
-  // Whether the wizard should be hidden — once loading begins, the wizard
-  // unmounts and the loading UI takes its place (per design decision L1).
-  // After the API returns and publicRankings is set, the acknowledgment screen
-  // takes its place instead.
   const showWizard = mode === "form" && !loading && !publicRankings;
 
   return (
@@ -1101,7 +913,6 @@ export default function Home() {
 
       <div className="relative z-10">
 
-        {/* ═══════ HEADER ═══════ */}
         <header className="fixed top-0 left-0 right-0 z-50 transition-all duration-300" style={{ background: scrolled ? "rgba(17,26,46,0.92)" : "transparent", backdropFilter: scrolled ? "blur(16px) saturate(1.2)" : "none", borderBottom: scrolled ? "1px solid rgba(255,255,255,0.06)" : "1px solid transparent" }}>
           <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1120,7 +931,6 @@ export default function Home() {
           </div>
         </header>
 
-        {/* ═══════ HERO ═══════ */}
         <section className="relative min-h-[80vh] flex items-center justify-center px-6 pt-16 overflow-hidden">
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] rounded-full pointer-events-none" style={{ background: "radial-gradient(ellipse, rgba(74,158,255,0.07) 0%, transparent 70%)" }} />
           <div className="relative max-w-3xl mx-auto text-center">
@@ -1143,7 +953,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ HOW IT WORKS ═══════ */}
         <section id="how-it-works" className="py-16 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-10">
@@ -1169,7 +978,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ PLATFORM ═══════ */}
         <section id="platform" className="py-16 px-6" style={{ background: "rgba(255,255,255,0.015)" }}>
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-10">
@@ -1198,11 +1006,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ INTAKE FORM — WIZARD + GATEWAY + LOADING + ACKNOWLEDGMENT ═══════ */}
         <section id="submit" className="py-16 px-6" ref={formRef}>
           <div className="max-w-[720px] mx-auto">
 
-            {/* ═══ LOADING UI — replaces the wizard while analysis runs (L1) ═══ */}
             {loading && (
               <div ref={stepCardRef}>
                 <div className="text-center mb-10">
@@ -1213,7 +1019,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* ═══ ACKNOWLEDGMENT SCREEN — shown after the API returns publicRankings ═══ */}
             {!loading && publicRankings && (
               <div className="anim-in" ref={stepCardRef}>
                 <div className="text-center mb-10">
@@ -1221,7 +1026,6 @@ export default function Home() {
                   <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Thank you for your submission</h2>
                 </div>
 
-                {/* Confirmation banner */}
                 <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.06] px-5 py-4 mb-8">
                   <div className="flex items-start gap-3">
                     <svg className="w-5 h-5 shrink-0 mt-0.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1234,24 +1038,11 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* The three rankings */}
                 <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8">
                   <div className="grid sm:grid-cols-3 gap-4 mb-6">
-                    <RankingBadge
-                      label="Completeness"
-                      value={publicRankings.completeness}
-                      tone={completenessTone(publicRankings.completeness)}
-                    />
-                    <RankingBadge
-                      label="Fundability"
-                      value={publicRankings.fundability}
-                      tone={fundabilityTone(publicRankings.fundability)}
-                    />
-                    <RankingBadge
-                      label="Next Step"
-                      value={publicRankings.nextStep}
-                      tone={nextStepTone(publicRankings.nextStep)}
-                    />
+                    <RankingBadge label="Completeness" value={publicRankings.completeness} tone={completenessTone(publicRankings.completeness)} />
+                    <RankingBadge label="Fundability" value={publicRankings.fundability} tone={fundabilityTone(publicRankings.fundability)} />
+                    <RankingBadge label="Next Step" value={publicRankings.nextStep} tone={nextStepTone(publicRankings.nextStep)} />
                   </div>
 
                   <div className="pt-5 border-t border-white/[0.06]">
@@ -1264,18 +1055,12 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Contact line */}
                 <p className="text-center text-sm text-slate-400 mt-8">
-                  If you have additional information, please contact{" "}
-                  <a href="mailto:info@henleyai.com" className="text-sky-400 hover:text-sky-300 transition-colors">
-                    info@henleyai.com
-                  </a>
-                  .
+                  If you have additional information, please contact{" "}<a href="mailto:info@henleyai.com" className="text-sky-400 hover:text-sky-300 transition-colors">info@henleyai.com</a>.
                 </p>
               </div>
             )}
 
-            {/* ═══ GATEWAY: PICK MODE ═══ */}
             {!loading && !publicRankings && mode === "pick" && (
               <div className="anim-in">
                 <div className="text-center mb-10">
@@ -1328,7 +1113,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* ═══ GATEWAY: CONTACT MODE ═══ */}
             {!loading && !publicRankings && mode === "contact" && (
               <div className="anim-in" ref={stepCardRef}>
                 <div className="text-center mb-8">
@@ -1367,34 +1151,13 @@ export default function Home() {
                   ) : (
                     <div className="space-y-7">
                       <Field label="Full Name">
-                        <input
-                          type="text"
-                          value={contactForm.name}
-                          disabled={contactSending}
-                          onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
-                          placeholder="Your full name"
-                          className={inputCls}
-                        />
+                        <input type="text" value={contactForm.name} disabled={contactSending} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} placeholder="Your full name" className={inputCls} />
                       </Field>
                       <Field label="Email Address">
-                        <input
-                          type="email"
-                          value={contactForm.email}
-                          disabled={contactSending}
-                          onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                          placeholder="you@example.com"
-                          className={inputCls}
-                        />
+                        <input type="email" value={contactForm.email} disabled={contactSending} onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })} placeholder="you@example.com" className={inputCls} />
                       </Field>
                       <Field label="Message" hint="Tell us what's on your mind.">
-                        <textarea
-                          rows={6}
-                          value={contactForm.message}
-                          disabled={contactSending}
-                          onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })}
-                          placeholder="Your message..."
-                          className={textareaCls}
-                        />
+                        <textarea rows={6} value={contactForm.message} disabled={contactSending} onChange={(e) => setContactForm({ ...contactForm, message: e.target.value })} placeholder="Your message..." className={textareaCls} />
                       </Field>
 
                       {contactError && (
@@ -1430,7 +1193,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* ═══ GATEWAY: FORM MODE (the original 6-step wizard) ═══ */}
             {showWizard && (
               <>
                 <div className="text-center mb-10">
@@ -1494,69 +1256,6 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ STREAMING PREVIEW (legacy — unreached, removed in commit 5) ═══════ */}
-        {loading && rawText && (
-          <section className="py-8 px-6">
-            <div className="max-w-[720px] mx-auto" ref={resultsRef}>
-              <div className="glow-line mb-8" />
-              <div className="mb-4 flex items-center gap-3">
-                <svg className="w-4 h-4 text-sky-400 shrink-0" style={{ animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50 20" />
-                </svg>
-                <p className="font-mono text-xs text-slate-500 uppercase tracking-[0.15em]">Analyzing — streaming output</p>
-              </div>
-              <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6">
-                <pre className="text-[15px] text-slate-300 leading-relaxed whitespace-pre-wrap font-sans">{rawText}</pre>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* ═══════ RESULTS (legacy — unreached, removed in commit 5) ═══════ */}
-        {analysis && (
-          <section className="py-8 px-6">
-            <div className="max-w-[720px] mx-auto" ref={resultsRef}>
-              <div className="glow-line mb-8" />
-              <div className="mb-6 anim-up">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <h2 className="font-display text-2xl md:text-3xl text-white font-semibold mb-2">Underwriting Report</h2>
-                    <p className="text-sm text-slate-400 font-mono">{new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })} · Henley AI v1.0</p>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <button onClick={copyText}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
-                      {copied ? (
-                        <><svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" /></svg><span className="text-emerald-400">Copied</span></>
-                      ) : (
-                        <><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy</>
-                      )}
-                    </button>
-                    <button onClick={exportWord}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                      Word
-                    </button>
-                    <button onClick={exportPDF}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-white/[0.1] text-slate-300 text-xs font-medium transition-all duration-200 hover:border-sky-400/30 hover:text-sky-400 hover:bg-sky-500/[0.05]">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
-                      PDF
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                {analysis.map((s, i) => <ResultCard key={i} section={s} index={i} />)}
-              </div>
-              <details className="mt-6">
-                <summary className="text-sm cursor-pointer select-none text-slate-500 font-mono hover:text-slate-300 transition-colors">View raw output</summary>
-                <pre className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-5 text-sm text-slate-400 leading-relaxed overflow-auto max-h-96 whitespace-pre-wrap font-mono">{rawText}</pre>
-              </details>
-            </div>
-          </section>
-        )}
-
-        {/* ═══════ FOOTER ═══════ */}
         <footer id="contact" className="border-t border-white/[0.06] py-14 px-6">
           <div className="max-w-5xl mx-auto">
             <div className="grid md:grid-cols-3 gap-10 md:gap-8 mb-10">
