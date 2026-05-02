@@ -53,6 +53,19 @@ interface FileAttachment {
   content: string;
 }
 
+// New: the four-ranking object returned by /api/analyze
+interface PublicRankings {
+  completeness: "Low" | "Medium" | "High";
+  fundability:
+    | "Likely"
+    | "Possible"
+    | "Unlikely"
+    | "More information required — the team will be in touch";
+  nextStep: "More information required" | "Under review" | "Not a fit";
+}
+
+// Legacy interface — used only by the old ResultCard component, which is no
+// longer reached in the new flow but is removed in commit 5.
 interface AnalysisSection {
   title: string;
   content: string;
@@ -116,6 +129,23 @@ const PROCEDURAL_STEPS: { value: string; label: string }[] = [
   { value: "appeal", label: "On appeal" },
   { value: "other", label: "Other (describe in notes)" },
 ];
+
+// ═══════════════════════════════════════════════════════
+// LOADING PHASES — used by the analytical-theater UI
+// ═══════════════════════════════════════════════════════
+
+const LOADING_PHASES = [
+  "Reviewing intake completeness",
+  "Analyzing legal theory",
+  "Evaluating collectibility",
+  "Mapping evidence gaps",
+  "Modeling expected value",
+  "Finalizing recommendation",
+];
+
+const PHASE_DURATION_MS = 5000;     // 5 seconds per phase
+const REVIEWING_HOLD_MS = 15000;    // 15 seconds in "Reviewing analysis…" state
+// "Finalizing analysis…" has no timer — it stays until the API returns.
 
 /* ═══════════════════════════════════════════════════════
    TERMS & CONDITIONS
@@ -283,7 +313,7 @@ function StepNav({ current, form, files, visitedSteps, onNavigate }: {
 }
 
 /* ═══════════════════════════════════════════════════════
-   RESULT CARD
+   RESULT CARD (legacy — unreached in new flow, removed in commit 5)
    ═══════════════════════════════════════════════════════ */
 
 function ResultCard({ section, index }: { section: AnalysisSection; index: number }) {
@@ -317,6 +347,110 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 /* ═══════════════════════════════════════════════════════
+   LOADING UI — phase rotation with do-not-refresh banner
+   ═══════════════════════════════════════════════════════ */
+
+type LoadingStage = "phases" | "reviewing" | "finalizing";
+
+function LoadingUI({ activePhase, stage }: { activePhase: number; stage: LoadingStage }) {
+  // activePhase is 0-indexed and refers to LOADING_PHASES.
+  // When stage = "phases", phases [0..activePhase-1] are complete, activePhase is in progress.
+  // When stage = "reviewing" or "finalizing", all six phases are complete.
+
+  const allPhasesComplete = stage !== "phases";
+
+  return (
+    <div className="anim-in">
+      {/* Do-not-refresh banner — sits at the top of the loading block (B3) */}
+      <div className="rounded-xl border border-amber-400/25 bg-amber-500/[0.07] px-5 py-4 mb-8">
+        <div className="flex items-start gap-3">
+          <svg className="w-5 h-5 shrink-0 mt-0.5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+          </svg>
+          <div>
+            <p className="text-[15px] font-semibold text-amber-200 leading-tight mb-1">Do not refresh this page</p>
+            <p className="text-sm text-amber-200/70 leading-relaxed">Your case is being analyzed. This may take several minutes.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Phase list */}
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8">
+        <div className="space-y-4">
+          {LOADING_PHASES.map((phase, idx) => {
+            const isComplete = allPhasesComplete || idx < activePhase;
+            const isActive = !allPhasesComplete && idx === activePhase;
+            const isPending = !allPhasesComplete && idx > activePhase;
+
+            return (
+              <div
+                key={idx}
+                className={`flex items-center gap-3 transition-all duration-500 ${
+                  isPending ? "opacity-30" : "opacity-100"
+                }`}
+              >
+                {/* Indicator: checkmark when complete, pulsing dot when active, empty circle when pending */}
+                <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+                  {isComplete && (
+                    <svg className="w-5 h-5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  )}
+                  {isActive && (
+                    <span className="relative flex w-3 h-3">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" style={{ animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite" }} />
+                      <span className="relative inline-flex w-3 h-3 rounded-full bg-sky-400" />
+                    </span>
+                  )}
+                  {isPending && (
+                    <div className="w-2 h-2 rounded-full border border-slate-600" />
+                  )}
+                </div>
+
+                <span
+                  className={`text-[15px] transition-colors duration-300 ${
+                    isComplete ? "text-slate-400" : isActive ? "text-sky-300 font-medium" : "text-slate-500"
+                  }`}
+                >
+                  {phase}
+                  {isActive && <span className="text-sky-400/60">…</span>}
+                </span>
+              </div>
+            );
+          })}
+
+          {/* "Reviewing analysis…" extension stage */}
+          {stage === "reviewing" && (
+            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] mt-4">
+              <span className="relative flex w-3 h-3">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" style={{ animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite" }} />
+                <span className="relative inline-flex w-3 h-3 rounded-full bg-sky-400" />
+              </span>
+              <span className="text-[15px] text-sky-300 font-medium">
+                Reviewing analysis<span className="text-sky-400/60">…</span>
+              </span>
+            </div>
+          )}
+
+          {/* "Finalizing analysis…" indefinite stage */}
+          {stage === "finalizing" && (
+            <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] mt-4">
+              <span className="relative flex w-3 h-3">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" style={{ animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite" }} />
+                <span className="relative inline-flex w-3 h-3 rounded-full bg-sky-400" />
+              </span>
+              <span className="text-[15px] text-sky-300 font-medium">
+                Finalizing analysis<span className="text-sky-400/60">…</span>
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
    MAIN PAGE
    ═══════════════════════════════════════════════════════ */
 
@@ -326,12 +460,22 @@ export default function Home() {
   const [currentStep, setCurrentStep] = useState(1);
   const [visitedSteps, setVisitedSteps] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
-  const [rawText, setRawText] = useState("");
   const [error, setError] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+
+  // New state for the analytical-theater loading UI
+  const [activePhase, setActivePhase] = useState(0);
+  const [loadingStage, setLoadingStage] = useState<LoadingStage>("phases");
+
+  // New state: the four-ranking object returned from /api/analyze
+  const [publicRankings, setPublicRankings] = useState<PublicRankings | null>(null);
+
+  // Legacy state — unreached in the new flow, retained for the streaming preview
+  // and old results section that get removed in commit 5.
+  const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
+  const [rawText, setRawText] = useState("");
   const [copied, setCopied] = useState(false);
 
   /* Gateway: "pick" | "form" | "contact" — controls the submission area UI */
@@ -341,7 +485,6 @@ export default function Home() {
   const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
   const [contactSending, setContactSending] = useState(false);
   const [contactSent, setContactSent] = useState(false);
-  // Turnstile tokens — one per form (intake wizard + contact form)
   const [intakeTurnstileToken, setIntakeTurnstileToken] = useState<string | null>(null);
   const [contactTurnstileToken, setContactTurnstileToken] = useState<string | null>(null);
   const [contactError, setContactError] = useState("");
@@ -357,6 +500,39 @@ export default function Home() {
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
+
+  // Phase rotation timer — advances through the six phases, then to "reviewing,"
+  // then to "finalizing." Stops advancing once "finalizing" is reached;
+  // "finalizing" stays until the API returns and `loading` flips to false.
+  useEffect(() => {
+    if (!loading) return;
+
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const tick = () => {
+      setActivePhase((prev) => {
+        const next = prev + 1;
+        if (next < LOADING_PHASES.length) {
+          // Advance to the next phase
+          timeoutId = setTimeout(tick, PHASE_DURATION_MS);
+          return next;
+        } else {
+          // All six phases done — move into the "reviewing" stage
+          setLoadingStage("reviewing");
+          // After REVIEWING_HOLD_MS, transition to "finalizing" (indefinite)
+          timeoutId = setTimeout(() => setLoadingStage("finalizing"), REVIEWING_HOLD_MS);
+          return prev; // don't increment past the last phase
+        }
+      });
+    };
+
+    // Kick off the first transition after PHASE_DURATION_MS
+    timeoutId = setTimeout(tick, PHASE_DURATION_MS);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [loading]);
 
   // Render the intake-form Turnstile widget when Step 6 becomes visible
   useEffect(() => {
@@ -376,7 +552,6 @@ export default function Home() {
     };
 
     if (!renderWidget()) {
-      // Script not ready yet; poll briefly until it loads
       const interval = setInterval(() => {
         if (renderWidget()) clearInterval(interval);
       }, 100);
@@ -454,87 +629,44 @@ export default function Home() {
   const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setDragActive(false); if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files); };
   const removeFile = (index: number) => setFiles((prev) => prev.filter((_, i) => i !== index));
 
-  /* ── Parse response ── */
-  const parseResponse = (text: string): AnalysisSection[] => {
-    if (!text?.trim()) return [{ title: "Error", content: "No response received from the analysis engine.", verdict: "fail" }];
-    const sections: AnalysisSection[] = [];
-    const blocks = text.split(/(?=^#{1,3}\s+)/m).filter((s) => s.trim());
-    if (blocks.length > 1) {
-      for (const block of blocks) {
-        const lines = block.trim().split("\n");
-        const titleLine = lines[0].replace(/^#{1,3}\s*/, "").replace(/\*+/g, "").trim();
-        const content = lines.slice(1).join("\n").trim();
-        if (!titleLine) continue;
-        const lc = (titleLine + " " + content).toLowerCase();
-        let verdict: AnalysisSection["verdict"];
-        if (/✅|verdict:\s*pass|\bpass\b.*complet|recommend.*fund|strong case|sufficient/.test(lc)) verdict = "pass";
-        else if (/❌|verdict:\s*fail|decline|do not fund|reject|not recommended/.test(lc)) verdict = "fail";
-        else if (/⚠|verdict:\s*caution|conditional|insufficient|additional.*needed|gaps?\s*identif/.test(lc)) verdict = "caution";
-        sections.push({ title: titleLine, content: content || "(No additional detail)", verdict });
-      }
-    }
-    if (sections.length === 0) {
-      const boldSplit = text.split(/(?=\*\*[^*]+\*\*)/m).filter((s) => s.trim());
-      if (boldSplit.length > 1) {
-        for (const block of boldSplit) {
-          const match = block.match(/^\*\*([^*]+)\*\*/);
-          if (match) {
-            const title = match[1].trim();
-            const content = block.replace(/^\*\*[^*]+\*\*:?\s*/, "").trim();
-            const lc = (title + " " + content).toLowerCase();
-            let verdict: AnalysisSection["verdict"];
-            if (/pass|sufficient|strong|recommend.*fund|✅/.test(lc)) verdict = "pass";
-            else if (/fail|decline|reject|not recommended|❌/.test(lc)) verdict = "fail";
-            else if (/caution|conditional|insufficient|gaps|⚠/.test(lc)) verdict = "caution";
-            sections.push({ title, content, verdict });
-          }
-        }
-      }
-    }
-    if (sections.length === 0) sections.push({ title: "Underwriting Analysis", content: text });
-    return sections;
-  };
-
+  /* ═══ Submit — new architecture: single JSON response, no streaming ═══ */
   const submit = async () => {
-    setError(""); setAnalysis(null); setRawText(""); setLoading(true);
+    setError("");
+    setPublicRankings(null);
+    setActivePhase(0);
+    setLoadingStage("phases");
+    setLoading(true);
+
     try {
-      const payload = { ...form, attachments: files.length > 0 ? files : undefined, turnstileToken: intakeTurnstileToken };
-      const res = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Error ${res.status}`); }
-      if (!res.body) throw new Error("No response body from analysis engine.");
+      const payload = {
+        ...form,
+        attachments: files.length > 0 ? files : undefined,
+        turnstileToken: intakeTurnstileToken,
+      };
 
-      // Stream tokens as they arrive
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-      // Scroll to results area as soon as streaming starts
-      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 300);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        fullText += chunk;
-        setRawText(fullText);
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `Error ${res.status}`);
       }
 
-      if (!fullText) throw new Error("Empty response from analysis engine. Please try again.");
-      setAnalysis(parseResponse(fullText));
-
-      // Log submission to Google Sheets
-      try {
-        await fetch("/api/log-submission", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ formData: form, analysisOutput: fullText, turnstileToken: intakeTurnstileToken }),
-        });
-      } catch (logErr) {
-        console.error("Logging failed (non-fatal):", logErr);
+      const data = await res.json();
+      // Expected shape: { public: { completeness, fundability, nextStep } }
+      if (!data?.public?.completeness || !data?.public?.fundability || !data?.public?.nextStep) {
+        throw new Error("Unexpected response shape from analysis service.");
       }
 
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : "Unexpected error"); }
-    finally { setLoading(false); }
+      setPublicRankings(data.public);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Unexpected error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /* Contact-form submission (separate from the 6-step intake) */
@@ -564,7 +696,7 @@ export default function Home() {
     }
   };
 
-  /* ── Export functions ── */
+  /* ═══ Legacy export functions — unreached in new flow, removed in commit 5 ═══ */
   const copyText = async () => {
     if (!rawText) return;
     await navigator.clipboard.writeText(rawText);
@@ -862,7 +994,7 @@ export default function Home() {
                   </a>
                   . I acknowledge that by submitting, I am entering into a legally binding agreement with Henley Lord Holdings.
                   </span>
-                </label> 
+                </label>
                 <div ref={intakeTurnstileRef} className="mt-4" />
               </Field>
             </div>
@@ -873,6 +1005,10 @@ export default function Home() {
         return null;
     }
   };
+
+  // Whether the wizard should be hidden — once loading begins, the wizard
+  // unmounts and the loading UI takes its place (per design decision L1).
+  const showWizard = mode === "form" && !loading;
 
   return (
     <>
@@ -899,6 +1035,7 @@ export default function Home() {
         @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
         @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes ping { 75%, 100% { transform: scale(2); opacity: 0; } }
         .anim-up { opacity: 0; animation: fadeUp 0.5s ease-out forwards; }
         .anim-in { opacity: 0; animation: fadeIn 0.3s ease-out forwards; }
         .glow-line { height: 1px; background: linear-gradient(90deg, transparent, var(--accent), transparent); opacity: 0.2; }
@@ -1005,12 +1142,23 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ═══════ INTAKE FORM — WIZARD ═══════ */}
+        {/* ═══════ INTAKE FORM — WIZARD + GATEWAY + LOADING ═══════ */}
         <section id="submit" className="py-16 px-6" ref={formRef}>
           <div className="max-w-[720px] mx-auto">
 
+            {/* ═══ LOADING UI — replaces the wizard while analysis runs (L1) ═══ */}
+            {loading && (
+              <div ref={stepCardRef}>
+                <div className="text-center mb-10">
+                  <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Analysis in Progress</p>
+                  <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Reviewing your case</h2>
+                </div>
+                <LoadingUI activePhase={activePhase} stage={loadingStage} />
+              </div>
+            )}
+
             {/* ═══ GATEWAY: PICK MODE ═══ */}
-            {mode === "pick" && (
+            {!loading && mode === "pick" && (
               <div className="anim-in">
                 <div className="text-center mb-10">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Get Started</p>
@@ -1020,11 +1168,11 @@ export default function Home() {
                 <div className="grid sm:grid-cols-2 gap-5">
                   {/* Card 1: Complete the form */}
                   <button
-  type="button"
-  onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
-  className="group relative text-left rounded-2xl border border-sky-400/40 bg-sky-500/[0.06] p-8 shadow-[0_0_24px_rgba(74,158,255,0.08)] hover:border-sky-400/60 hover:bg-sky-500/[0.09] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.18)] transition-all duration-300"
->
-  <span className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-[0.15em] text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-1 rounded">Recommended</span>
+                    type="button"
+                    onClick={() => { setMode("form"); setTimeout(() => stepCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); }}
+                    className="group relative text-left rounded-2xl border border-sky-400/40 bg-sky-500/[0.06] p-8 shadow-[0_0_24px_rgba(74,158,255,0.08)] hover:border-sky-400/60 hover:bg-sky-500/[0.09] hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(74,158,255,0.18)] transition-all duration-300"
+                  >
+                    <span className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-[0.15em] text-sky-400 bg-sky-400/10 border border-sky-400/30 px-2 py-1 rounded">Recommended</span>
                     <div className="w-14 h-14 rounded-2xl border border-sky-400/25 bg-sky-500/[0.08] flex items-center justify-center text-sky-400 mb-5 group-hover:bg-sky-500/[0.14] transition-colors">
                       <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -1065,7 +1213,7 @@ export default function Home() {
             )}
 
             {/* ═══ GATEWAY: CONTACT MODE ═══ */}
-            {mode === "contact" && (
+            {!loading && mode === "contact" && (
               <div className="anim-in" ref={stepCardRef}>
                 <div className="text-center mb-8">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Contact</p>
@@ -1167,7 +1315,7 @@ export default function Home() {
             )}
 
             {/* ═══ GATEWAY: FORM MODE (the original 6-step wizard) ═══ */}
-            {mode === "form" && (
+            {showWizard && (
               <>
                 <div className="text-center mb-10">
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Case Intake</p>
@@ -1186,60 +1334,51 @@ export default function Home() {
 
                 <StepNav current={currentStep} form={form} files={files} visitedSteps={visitedSteps} onNavigate={goToStep} />
 
-            <div ref={stepCardRef} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8 anim-in" key={currentStep}>
-              <div className="flex items-center justify-between mb-7">
-                <div>
-                  <p className="font-mono text-xs text-slate-500 uppercase tracking-[0.15em] mb-1">Step {currentStep} of {STEPS.length}</p>
-                  <h3 className="font-display text-2xl text-white font-semibold">{STEPS[currentStep - 1].label}</h3>
-                </div>
-                <span className="font-mono text-[40px] font-bold leading-none select-none" style={{ color: "rgba(74,158,255,0.07)" }}>0{currentStep}</span>
-              </div>
+                <div ref={stepCardRef} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-6 md:p-8 anim-in" key={currentStep}>
+                  <div className="flex items-center justify-between mb-7">
+                    <div>
+                      <p className="font-mono text-xs text-slate-500 uppercase tracking-[0.15em] mb-1">Step {currentStep} of {STEPS.length}</p>
+                      <h3 className="font-display text-2xl text-white font-semibold">{STEPS[currentStep - 1].label}</h3>
+                    </div>
+                    <span className="font-mono text-[40px] font-bold leading-none select-none" style={{ color: "rgba(74,158,255,0.07)" }}>0{currentStep}</span>
+                  </div>
 
-              {renderStep()}
+                  {renderStep()}
 
-              {error && currentStep === 6 && (
-                <div className="mt-5 rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{error}</div>
-              )}
+                  {error && currentStep === 6 && (
+                    <div className="mt-5 rounded-xl border border-red-500/25 bg-red-500/[0.06] p-4 text-[15px] text-red-400">{error}</div>
+                  )}
 
-              <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/[0.06]">
-                <button type="button" onClick={prevStep} disabled={currentStep === 1}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/[0.1] text-slate-300 text-sm font-medium transition-all duration-200 hover:border-white/[0.2] hover:text-white disabled:opacity-0 disabled:pointer-events-none">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
-                  Back
-                </button>
+                  <div className="flex items-center justify-between mt-8 pt-6 border-t border-white/[0.06]">
+                    <button type="button" onClick={prevStep} disabled={currentStep === 1}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-white/[0.1] text-slate-300 text-sm font-medium transition-all duration-200 hover:border-white/[0.2] hover:text-white disabled:opacity-0 disabled:pointer-events-none">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+                      Back
+                    </button>
 
-                {currentStep < 6 ? (
-                  <button type="button" onClick={nextStep}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-semibold transition-all duration-200 hover:brightness-110"
-                    style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}>
-                    Continue
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
-                  </button>
-                ) : (
-                  <button type="button" onClick={submit} disabled={!canSubmit}
-                    className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-white font-semibold text-base transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.2)]"
-                    style={{ background: canSubmit ? "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" : "rgba(74,158,255,0.2)" }}>
-                    {loading ? (
-                      <>
-                        <svg className="w-5 h-5" style={{ animation: "spin 1s linear infinite" }} viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="50 20" /></svg>
-                        Analyzing Case…
-                      </>
+                    {currentStep < 6 ? (
+                      <button type="button" onClick={nextStep}
+                        className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-white text-sm font-semibold transition-all duration-200 hover:brightness-110"
+                        style={{ background: "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" }}>
+                        Continue
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+                      </button>
                     ) : (
-                      <>
+                      <button type="button" onClick={submit} disabled={!canSubmit}
+                        className="flex items-center gap-2.5 px-8 py-3 rounded-xl text-white font-semibold text-base transition-all duration-200 disabled:opacity-25 disabled:cursor-not-allowed hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_12px_40px_rgba(74,158,255,0.2)]"
+                        style={{ background: canSubmit ? "linear-gradient(135deg, #4a9eff 0%, #2563eb 100%)" : "rgba(74,158,255,0.2)" }}>
                         Submit & Accept Terms
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
-                      </>
+                      </button>
                     )}
-                  </button>
-                )}
-              </div>
-            </div>
+                  </div>
+                </div>
               </>
             )}
           </div>
         </section>
 
-        {/* ═══════ STREAMING PREVIEW ═══════ */}
+        {/* ═══════ STREAMING PREVIEW (legacy — unreached, removed in commit 5) ═══════ */}
         {loading && rawText && (
           <section className="py-8 px-6">
             <div className="max-w-[720px] mx-auto" ref={resultsRef}>
@@ -1257,7 +1396,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* ═══════ RESULTS ═══════ */}
+        {/* ═══════ RESULTS (legacy — unreached, removed in commit 5) ═══════ */}
         {analysis && (
           <section className="py-8 px-6">
             <div className="max-w-[720px] mx-auto" ref={resultsRef}>
@@ -1300,6 +1439,9 @@ export default function Home() {
             </div>
           </section>
         )}
+
+        {/* publicRankings is set by submit() but isn't rendered yet — commit 4 adds the acknowledgment screen. Suppressing the unused-var lint with a no-op render. */}
+        {publicRankings && null}
 
         {/* ═══════ FOOTER ═══════ */}
         <footer id="contact" className="border-t border-white/[0.06] py-14 px-6">
