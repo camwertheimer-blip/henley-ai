@@ -85,7 +85,7 @@ export async function getAccessToken(email: string, privateKey: string): Promise
     folderId: string,
   ): Promise<string> {
     // Step 1: Create the Doc inside the target folder via the Drive API.
-    const createRes = await fetch("https://www.googleapis.com/drive/v3/files", {
+    const createRes = await fetch("https://www.googleapis.com/drive/v3/files?supportsAllDrives=true", {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
