@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { contactLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
+import { sendSubmissionNotification } from "@/lib/email";
 
 export const maxDuration = 30;
 
@@ -110,7 +111,16 @@ export async function POST(request: NextRequest) {
         console.error("Sheet write failed (non-fatal):", sheetErr);
       }
     }
-
+// Email notification — fire-and-let-it-fail; helper swallows its own errors
+await sendSubmissionNotification({
+    type: "contact",
+    name,
+    email,
+    message,
+    sheetUrl: sheetId
+      ? `https://docs.google.com/spreadsheets/d/${sheetId}/edit`
+      : undefined,
+  });
     return new Response(JSON.stringify({ success: true }), { status: 200 });
   } catch (e) {
     console.error("contact error:", e);

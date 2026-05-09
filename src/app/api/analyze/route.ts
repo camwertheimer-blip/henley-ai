@@ -11,6 +11,7 @@ import {
   updateRowWithParseFailure,
   markRowAnalysisFailed,
 } from "@/lib/google-sheets";
+import { sendSubmissionNotification } from "@/lib/email";
 
 export const maxDuration = 300;
 
@@ -525,6 +526,19 @@ Name: ${escape(contactName) || "Not provided"}${contactEmail ? `\nEmail: ${escap
         console.error(`Failed to record parse failure on row ${rowNumber}:`, sheetErr);
       }
 
+      // Email notification (parse failed — manual review needed)
+      await sendSubmissionNotification({
+        type: "intake",
+        caseTitle: caseNarrative
+          ? `[PARSE FAILED] ${caseNarrative.slice(0, 70)}`
+          : "[PARSE FAILED]",
+        plaintiffName: name,
+        proceduralStep: proceduralStep || undefined,
+        fundingAmount: fundingRequest ? `$${fundingRequest}` : undefined,
+        caseType: jurisdiction || undefined,
+        sheetUrl: `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
+      });
+
       return new Response(
         JSON.stringify({ public: FALLBACK_RANKINGS }),
         { status: 200, headers: { "Content-Type": "application/json" } }
@@ -555,6 +569,18 @@ Name: ${escape(contactName) || "Not provided"}${contactEmail ? `\nEmail: ${escap
     );
 
     await updateRowWithResults(googleToken, sheetId, rowNumber, outputUrl, parsed.public);
+
+    // Email notification — fire-and-let-it-fail; helper swallows its own errors
+    await sendSubmissionNotification({
+      type: "intake",
+      caseTitle: caseNarrative ? caseNarrative.slice(0, 80) : undefined,
+      plaintiffName: name,
+      proceduralStep: proceduralStep || undefined,
+      fundingAmount: fundingRequest ? `$${fundingRequest}` : undefined,
+      caseType: jurisdiction || undefined,
+      sheetUrl: `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
+      docUrl: outputUrl,
+    });
 
     return new Response(
       JSON.stringify({ public: parsed.public }),
