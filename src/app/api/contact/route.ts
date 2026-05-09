@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
       }
     }
 // Email notification — fire-and-let-it-fail; helper swallows its own errors
+console.log("[contact] About to call sendSubmissionNotification");
 await sendSubmissionNotification({
     type: "contact",
     name,
