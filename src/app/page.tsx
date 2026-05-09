@@ -134,8 +134,20 @@ const LOADING_PHASES = [
   "Finalizing recommendation",
 ];
 
-const PHASE_DURATION_MS = 5000;
+const PHASE_DURATION_MS = 10000;
 const REVIEWING_HOLD_MS = 15000;
+
+const FINALIZING_SUBSTEPS = [
+  "Finalizing analysis",
+  "Stress-testing downside scenarios",
+  "Calibrating confidence intervals",
+  "Cross-checking comparable outcomes",
+  "Drafting investment memo",
+  "Polishing recommendation",
+  "Almost there — complex cases take a moment longer",
+];
+
+const SUBSTEP_DURATION_MS = 6000;
 
 /* ═══════════════════════════════════════════════════════
    TERMS & CONDITIONS
@@ -322,7 +334,11 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 type LoadingStage = "phases" | "reviewing" | "finalizing";
 
-function LoadingUI({ activePhase, stage }: { activePhase: number; stage: LoadingStage }) {
+function LoadingUI({ activePhase, stage, finalizingSubstep }: { 
+  activePhase: number; 
+  stage: LoadingStage; 
+  finalizingSubstep: number;
+}) {
   const allPhasesComplete = stage !== "phases";
 
   return (
@@ -394,14 +410,14 @@ function LoadingUI({ activePhase, stage }: { activePhase: number; stage: Loading
             </div>
           )}
 
-          {stage === "finalizing" && (
+{stage === "finalizing" && (
             <div className="flex items-center gap-3 pt-2 border-t border-white/[0.06] mt-4">
               <span className="relative flex w-3 h-3">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-75" style={{ animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite" }} />
                 <span className="relative inline-flex w-3 h-3 rounded-full bg-sky-400" />
               </span>
-              <span className="text-[15px] text-sky-300 font-medium">
-                Finalizing analysis<span className="text-sky-400/60">…</span>
+              <span className="text-[15px] text-sky-300 font-medium transition-opacity duration-300">
+                {FINALIZING_SUBSTEPS[finalizingSubstep]}<span className="text-sky-400/60">…</span>
               </span>
             </div>
           )}
@@ -472,6 +488,7 @@ export default function Home() {
 
   const [activePhase, setActivePhase] = useState(0);
   const [loadingStage, setLoadingStage] = useState<LoadingStage>("phases");
+  const [finalizingSubstep, setFinalizingSubstep] = useState(0);
   const [publicRankings, setPublicRankings] = useState<PublicRankings | null>(null);
 
   const [mode, setMode] = useState<"pick" | "form" | "contact">("pick");
@@ -1015,7 +1032,7 @@ export default function Home() {
                   <p className="font-mono text-sm tracking-[0.2em] uppercase mb-3" style={{ color: "var(--gold)" }}>Analysis in Progress</p>
                   <h2 className="font-display text-3xl md:text-4xl text-white font-semibold mb-3">Reviewing your case</h2>
                 </div>
-                <LoadingUI activePhase={activePhase} stage={loadingStage} />
+                <LoadingUI activePhase={activePhase} stage={loadingStage} finalizingSubstep={finalizingSubstep} />
               </div>
             )}
 
