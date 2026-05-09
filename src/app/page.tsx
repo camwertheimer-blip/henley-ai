@@ -1050,7 +1050,7 @@ export default function Home() {
                     </svg>
                     <div>
                       <p className="text-[15px] font-semibold text-emerald-200 leading-tight mb-1">Submission received</p>
-                      <p className="text-sm text-emerald-200/80 leading-relaxed">A confirmation has been sent to the email on file. Our team will be in touch within 1–2 business days.</p>
+                      <p className="text-sm text-emerald-200/80 leading-relaxed">Thank you for submitting your information. Our team will be in touch within 1–2 business days.</p>
                     </div>
                   </div>
                 </div>
