@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { readFileSync, existsSync } from "fs";
 import { join } from "path";
 import { randomUUID } from "crypto";
-import { analyzeLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
+import { checkAnalyzeLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
 import {
   getAccessToken,
   createGoogleDoc,
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     // ─── Security: rate limit + Turnstile ───
     const clientIp = getClientIp(request);
 
-    const { success: rateLimitOk } = await analyzeLimiter.limit(clientIp);
+    const rateLimitOk = await checkAnalyzeLimiter(clientIp);
     if (!rateLimitOk) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),

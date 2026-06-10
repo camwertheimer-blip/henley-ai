@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { contactLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
+import { checkContactLimiter, getClientIp, verifyTurnstile } from "@/lib/security";
 import { sendSubmissionNotification } from "@/lib/email";
 
 export const maxDuration = 30;
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // ---- Security: rate limit + Turnstile verification ----
     const clientIp = getClientIp(request);
 
-    const { success: rateLimitOk } = await contactLimiter.limit(clientIp);
+    const rateLimitOk = await checkContactLimiter(clientIp);
     if (!rateLimitOk) {
       return new Response(
         JSON.stringify({ error: "Too many requests. Please try again later." }),
